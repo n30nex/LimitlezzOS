@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="ms-rounded.css" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  *::-webkit-scrollbar{width:0;height:0;display:none}
+  html,body{margin:0;background:#0a0b0d}
+  @keyframes lzBlink{0%,48%{opacity:1}52%,100%{opacity:0}}
+</style>
+</helmet>
+<div style="min-height:100vh;width:100%;background:#0e0f12;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#e9edf2;padding:38px 24px 64px;display:flex;flex-direction:column;align-items:center;gap:32px">
+
+  <!-- HEADER -->
+  <div style="width:100%;max-width:980px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap">
+    <div>
+      <div style="display:flex;align-items:center;gap:11px">
+        <div style="width:30px;height:30px;border-radius:9px;background:linear-gradient(150deg,oklch(0.8 0.13 165),oklch(0.62 0.15 165));display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px oklch(0.7 0.15 165 / 0.4),inset 0 1px 0 rgba(255,255,255,0.4)">
+          <span style="font-family:'Material Symbols Rounded';font-size:18px;color:#06140f">hub</span>
+        </div>
+        <div style="font-size:25px;font-weight:700;letter-spacing:-0.02em">Limitlezz<span style="color:oklch(0.82 0.12 165)">OS</span></div>
+      </div>
+      <div style="margin-top:8px;font-size:13.5px;color:#9aa1ab;max-width:560px;line-height:1.5">A mesh-native handheld OS for the LilyGo T-Deck — one inbox for Meshtastic <span style="color:oklch(0.74 0.12 205)">&#9679;</span> and MeshCore <span style="color:oklch(0.78 0.13 72)">&#9679;</span>, driven entirely by the trackball.</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div style="font-size:11px;color:#aab0b9;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:999px;padding:6px 12px">2.8&quot; &middot; 320&times;240</div>
+      <div style="font-size:11px;color:#aab0b9;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:999px;padding:6px 12px">Trackball + QWERTY</div>
+    </div>
+  </div>
+
+  <!-- HERO DEVICE -->
+  <div style="width:583px;height:812px;position:relative">
+    <div style="position:absolute;top:0;left:0;transform:scale(1.62);transform-origin:top left;width:360px">
+      <div style="width:360px;border-radius:30px;background:linear-gradient(155deg,#33363c 0%,#202327 38%,#15171a 100%);padding:13px 13px 11px;box-shadow:0 40px 70px -20px rgba(0,0,0,0.75),0 0 0 1px rgba(255,255,255,0.05),inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -2px 6px rgba(0,0,0,0.5)">
+        <!-- top: speaker + sensor -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:7px;padding:1px 0 8px">
+          <div style="width:46px;height:4px;border-radius:3px;background:#0b0c0e;box-shadow:inset 0 1px 1px rgba(0,0,0,0.9)"></div>
+          <div style="width:5px;height:5px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#3a4048,#0e0f11)"></div>
+        </div>
+        <!-- screen frame -->
+        <div style="border-radius:13px;background:#050507;padding:5px 7px 7px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.04),inset 0 2px 8px rgba(0,0,0,0.9),0 1px 0 rgba(255,255,255,0.05)">
+          <div style="text-align:center;font-size:8.5px;letter-spacing:0.34em;color:#9095a0;font-weight:600;padding:3px 0 5px">LILYGO</div>
+          <div style="width:320px;height:240px;border-radius:6px;overflow:hidden;position:relative;background:#0b0d11">
+
+            <!-- ===== LOCK ===== -->
+            <sc-if value="{{ isLock }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Lock" onClick="{{ unlock }}" style="position:absolute;inset:0;background:#0b0e13;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer">
+                <div style="position:absolute;top:14px;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:0 13px">
+                  <div style="display:flex;align-items:center;gap:5px"><span style="font-family:'Material Symbols Rounded';font-size:13px;color:oklch(0.74 0.12 205)">hub</span><span style="font-family:'Material Symbols Rounded';font-size:13px;color:oklch(0.78 0.13 72)">lan</span><span style="font-size:9px;color:#7f868f;font-weight:500">2 networks</span></div>
+                  <div style="display:flex;align-items:center;gap:5px"><span style="font-size:9.5px;color:#aeb6bf">87%</span><div style="width:17px;height:9px;border:1.3px solid #767d86;border-radius:2.5px;padding:1px;display:flex"><div style="height:100%;width:84%;background:oklch(0.82 0.13 145);border-radius:1px"></div></div></div>
+                </div>
+                <div style="font-size:55px;font-weight:300;letter-spacing:-0.02em;line-height:1">14:23</div>
+                <div style="font-size:12px;color:#9aa1ab;margin-top:4px;font-weight:500">Thursday, June 12</div>
+                <div style="margin-top:22px;display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08)"><span style="font-family:'Material Symbols Rounded';font-size:14px;color:oklch(0.82 0.12 165)">lock</span><span style="font-size:11px;color:#cfd4da;font-weight:500">Click trackball or press Enter</span></div>
+                <div style="position:absolute;bottom:12px;font-size:9px;letter-spacing:0.04em;color:#5a616a">Limitlezz<span style="color:#8a929b">OS</span> &nbsp;1.0</div>
+              </div>
+            </sc-if>
+
+            <!-- ===== HOME ===== -->
+            <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Home" style="position:absolute;inset:0">
+                <dc-import name="Launcher" apps="{{ apps }}" variant="{{ launcher }}" focus="{{ focus }}" onOpen="{{ onHeroOpen }}" onFocus="{{ onHeroFocus }}" hint-size="320px,240px"></dc-import>
+              </div>
+            </sc-if>
+
+            <!-- ===== MESSAGES ===== -->
+            <sc-if value="{{ isMessages }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Messages" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0c0e12">
+                <div style="height:29px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 5px;background:#1b2230;border-bottom:1px solid #11161d;position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#e2e6ea">chevron_left</span></button>
+                  <div style="font-size:13px;font-weight:600;color:#f2f4f6;position:absolute;left:0;right:0;text-align:center;pointer-events:none">Messages</div>
+                  <button onClick="{{ compose }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 5px"><span style="font-family:'Material Symbols Rounded';font-size:17px;color:oklch(0.82 0.12 165)">edit</span></button>
+                </div>
+                <div style="flex:none;display:flex;padding:5px 8px 0;background:#0e141b">
+                  <button onClick="{{ tabDms }}" style="appearance:none;border:0;cursor:pointer;flex:1;padding:5px 0 7px;background:transparent;color:{{ dmsTabColor }};font-size:11.5px;font-weight:600;border-bottom:2px solid {{ dmsTabBorder }}">Direct</button>
+                  <button onClick="{{ tabChannels }}" style="appearance:none;border:0;cursor:pointer;flex:1;padding:5px 0 7px;background:transparent;color:{{ chTabColor }};font-size:11.5px;font-weight:600;border-bottom:2px solid {{ chTabBorder }}">Channels</button>
+                </div>
+                <div style="flex:none;display:flex;align-items:center;gap:5px;padding:6px 8px;background:#0c0e12;box-shadow:inset 0 -1px 0 rgba(255,255,255,0.05)">
+                  <button onClick="{{ filterAll }}" style="appearance:none;border:0;cursor:pointer;display:flex;align-items:center;gap:3px;padding:3px 9px;border-radius:999px;font-size:9.5px;font-weight:600;color:{{ fAllColor }};background:{{ fAllBg }};box-shadow:{{ fAllRing }}">All<span style="opacity:0.5;font-size:8px">1</span></button>
+                  <button onClick="{{ filterMt }}" style="appearance:none;border:0;cursor:pointer;display:flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:9.5px;font-weight:600;color:{{ fMtColor }};background:{{ fMtBg }};box-shadow:{{ fMtRing }}"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.74 0.12 205)"></span>Meshtastic<span style="opacity:0.5;font-size:8px">2</span></button>
+                  <button onClick="{{ filterMc }}" style="appearance:none;border:0;cursor:pointer;display:flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:9.5px;font-weight:600;color:{{ fMcColor }};background:{{ fMcBg }};box-shadow:{{ fMcRing }}"><span style="width:6px;height:6px;border-radius:50%;background:oklch(0.78 0.13 72)"></span>MeshCore<span style="opacity:0.5;font-size:8px">3</span></button>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:5px 7px 8px">
+                  <sc-if value="{{ isDmsTab }}" hint-placeholder-val="{{ true }}">
+                    <sc-for list="{{ msgRows }}" as="t" hint-placeholder-count="5">
+                      <button onClick="{{ t.run }}" onMouseEnter="{{ t.hover }}" data-fi="{{ t.i }}" style="appearance:none;border:0;cursor:pointer;width:100%;display:flex;align-items:center;gap:9px;padding:7px 8px;margin-bottom:3px;border-radius:11px;text-align:left;background:{{ t.bg }};box-shadow:{{ t.ring }};opacity:{{ t.dim }}">
+                        <div style="position:relative;width:33px;height:33px;flex:none">
+                          <div style="width:33px;height:33px;border-radius:50%;background:{{ t.avBg }};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;box-shadow:none">{{ t.initial }}</div>
+                          <div style="position:absolute;bottom:-1px;right:-1px;width:13px;height:13px;border-radius:50%;background:#0c0e12;display:flex;align-items:center;justify-content:center"><span style="width:9px;height:9px;border-radius:50%;background:{{ t.netColor }}"></span></div>
+                        </div>
+                        <div style="flex:1;min-width:0">
+                          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px"><span style="font-size:12px;font-weight:600;color:#eef1f4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.name }}</span><span style="font-size:9px;color:#7c838c;flex:none">{{ t.t }}</span></div>
+                          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:1px"><span style="font-size:10px;color:{{ t.snipColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.text }}</span><sc-if value="{{ t.unread }}" hint-placeholder-val="{{ true }}"><span style="flex:none;min-width:15px;height:15px;padding:0 4px;border-radius:999px;background:oklch(0.82 0.12 165);color:#06140f;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ t.unread }}</span></sc-if></div>
+                        </div>
+                      </button>
+                    </sc-for>
+                    <sc-if value="{{ netDisabledNote }}" hint-placeholder-val="{{ true }}"><div style="margin:7px 4px 0;padding:7px 9px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.1);font-size:9.5px;color:#7f868f;line-height:1.4">{{ netDisabledNote }}</div></sc-if>
+                  </sc-if>
+                  <sc-if value="{{ isChannelsTab }}" hint-placeholder-val="{{ true }}">
+                    <sc-for list="{{ channelRows }}" as="c" hint-placeholder-count="4">
+                      <button onClick="{{ c.run }}" onMouseEnter="{{ c.hover }}" data-fi="{{ c.i }}" style="appearance:none;border:0;cursor:pointer;width:100%;display:flex;align-items:center;gap:9px;padding:7px 8px;margin-bottom:3px;border-radius:11px;text-align:left;background:{{ c.bg }};box-shadow:{{ c.ring }};opacity:{{ c.dim }}">
+                        <div style="width:33px;height:33px;flex:none;border-radius:9px;background:{{ c.tileBg }};display:flex;align-items:center;justify-content:center;box-shadow:none"><span style="font-family:'Material Symbols Rounded';font-size:18px;color:#fff">{{ c.icon }}</span></div>
+                        <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;font-weight:600;color:#eef1f4">{{ c.name }}</span><span style="font-size:9px;color:#7c838c">{{ c.t }}</span></div><div style="font-size:9.5px;color:#838a93;margin-top:1px">{{ c.sub }}</div><div style="font-size:10px;color:#9aa1ab;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.text }}</div></div>
+                      </button>
+                    </sc-for>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== CONVERSATION ===== -->
+            <sc-if value="{{ isConvo }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Conversation" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0c0e12">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:#1b2230;border-bottom:1px solid #11161d;position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#e2e6ea">chevron_left</span></button>
+                  <div style="position:absolute;left:34px;right:34px;text-align:center;pointer-events:none"><div style="font-size:12.5px;font-weight:600;color:#f2f4f6;line-height:1.1">{{ convo.name }}</div><div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:1px"><span style="width:5px;height:5px;border-radius:50%;background:{{ convo.netColor }}"></span><span style="font-size:8.5px;color:{{ convo.netColor }};font-weight:600">{{ convo.netName }}</span><span style="font-size:8.5px;color:#7c838c">&middot; {{ convo.path }}</span></div></div>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:9px 9px 6px;display:flex;flex-direction:column;gap:6px">
+                  <div style="text-align:center;font-size:8.5px;color:#5e656e;padding:1px 0 4px">Encrypted &middot; {{ convo.netName }} &middot; {{ convo.addr }}</div>
+                  <sc-for list="{{ convoMsgs }}" as="m" hint-placeholder-count="4">
+                    <div style="display:flex;justify-content:{{ m.justify }}"><div style="max-width:74%;display:flex;flex-direction:column;align-items:{{ m.align }}"><div style="padding:6px 9px;border-radius:13px;background:{{ m.bubbleBg }};font-size:11px;line-height:1.35;color:{{ m.textColor }}">{{ m.text }}</div><span style="font-size:8px;color:#6b727b;margin-top:2px;padding:0 3px">{{ m.t }}</span></div></div>
+                  </sc-for>
+                </div>
+                <div style="flex:none;padding:6px 7px;background:#0f141b;border-top:1px solid #1a212a">
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <input value="{{ draft }}" onInput="{{ onDraft }}" placeholder="Message {{ convo.name }}…" style="flex:1;appearance:none;border:1px solid rgba(255,255,255,0.1);background:#191d24;border-radius:999px;padding:6px 11px;font-size:11px;color:#eef1f4;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;outline:none">
+                    <button onClick="{{ sendMsg }}" style="appearance:none;border:0;cursor:pointer;display:flex;align-items:center;gap:3px;padding:6px 10px 6px 11px;border-radius:999px;background:{{ convo.sendBg }};box-shadow:0 2px 6px rgba(0,0,0,0.35)"><span style="font-size:9px;font-weight:700;color:#fff">{{ convo.netName }}</span><span style="font-family:'Material Symbols Rounded';font-size:14px;color:#fff">send</span></button>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== MESHTASTIC ===== -->
+            <sc-if value="{{ isMeshtastic }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Meshtastic" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0b0e12">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:oklch(0.3 0.06 205);border-bottom:1px solid oklch(0.18 0.04 205);position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#eaf6fb">chevron_left</span></button>
+                  <div style="font-size:13px;font-weight:600;color:#fff;position:absolute;left:0;right:0;text-align:center;pointer-events:none">Meshtastic</div>
+                  <div style="position:absolute;right:8px"><span style="width:6px;height:6px;border-radius:50%;background:{{ mtStatusDot }};display:block"></span></div>
+                </div>
+                <div style="flex:none;display:flex;align-items:center;gap:9px;padding:8px 10px;background:#0f1822;border-bottom:1px solid #18222c">
+                  <div style="width:34px;height:34px;flex:none;border-radius:10px;background:oklch(0.62 0.13 205);display:flex;align-items:center;justify-content:center"><span style="font-size:12px;font-weight:800;color:#06181f">JES</span></div>
+                  <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#eef1f4">Jess &middot; <span style="color:oklch(0.78 0.1 205)">JESS</span></div><div style="font-size:9.5px;color:#869099;margin-top:1px">!7c3af1d0 &middot; Region US &middot; LongFast</div></div>
+                  <div style="text-align:right"><div style="font-size:9px;color:#6f7882">nodes</div><div style="font-size:15px;font-weight:700;color:oklch(0.8 0.1 205);line-height:1">5</div></div>
+                </div>
+                <div style="flex:none;display:flex;padding:0 8px;background:#0b0e12;box-shadow:inset 0 -1px 0 rgba(255,255,255,0.06)">
+                  <button onClick="{{ mtTabNodes }}" style="appearance:none;border:0;cursor:pointer;flex:1;padding:6px 0;background:transparent;color:{{ mtNodesColor }};font-size:11px;font-weight:600;border-bottom:2px solid {{ mtNodesBorder }}">Nodes</button>
+                  <button onClick="{{ mtTabChannels }}" style="appearance:none;border:0;cursor:pointer;flex:1;padding:6px 0;background:transparent;color:{{ mtChColor }};font-size:11px;font-weight:600;border-bottom:2px solid {{ mtChBorder }}">Channels</button>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:5px 7px 8px">
+                  <sc-if value="{{ mtNodesTab }}" hint-placeholder-val="{{ true }}">
+                    <sc-for list="{{ mtNodeRows }}" as="n" hint-placeholder-count="5">
+                      <button onClick="{{ n.run }}" onMouseEnter="{{ n.hover }}" data-fi="{{ n.i }}" style="appearance:none;border:0;cursor:pointer;width:100%;display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:3px;border-radius:10px;text-align:left;background:{{ n.bg }};box-shadow:{{ n.ring }}">
+                        <div style="width:30px;height:30px;flex:none;border-radius:8px;background:#161b22;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:oklch(0.78 0.1 205);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06)">{{ n.short }}</div>
+                        <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:5px"><span style="font-size:11.5px;font-weight:600;color:#eef1f4">{{ n.name }}</span><span style="font-size:8px;font-weight:600;color:#8b939c;background:rgba(255,255,255,0.07);padding:1px 5px;border-radius:5px">{{ n.role }}</span></div><div style="font-size:9px;color:#838a93;margin-top:1px">{{ n.id }} &middot; {{ n.dist }} &middot; {{ n.last }}</div></div>
+                        <div style="text-align:right;flex:none"><div style="font-size:10px;font-weight:600;color:{{ n.snrColor }}">{{ n.snr }}</div><div style="font-size:8px;color:#6f7882">SNR</div></div>
+                      </button>
+                    </sc-for>
+                  </sc-if>
+                  <sc-if value="{{ mtChannelsTab }}" hint-placeholder-val="{{ true }}">
+                    <sc-for list="{{ mtChannelRows }}" as="c" hint-placeholder-count="3">
+                      <button onClick="{{ c.run }}" onMouseEnter="{{ c.hover }}" data-fi="{{ c.i }}" style="appearance:none;border:0;cursor:pointer;width:100%;display:flex;align-items:center;gap:8px;padding:7px 8px;margin-bottom:3px;border-radius:10px;text-align:left;background:{{ c.bg }};box-shadow:{{ c.ring }}">
+                        <span style="font-family:'Material Symbols Rounded';font-size:18px;color:oklch(0.78 0.1 205)">{{ c.icon }}</span>
+                        <div style="flex:1;min-width:0"><div style="font-size:11.5px;font-weight:600;color:#eef1f4">{{ c.name }}</div><div style="font-size:9px;color:#838a93;margin-top:1px">{{ c.sub }}</div></div>
+                        <sc-if value="{{ c.primary }}" hint-placeholder-val="{{ true }}"><span style="font-size:8px;font-weight:700;color:oklch(0.8 0.1 205);background:oklch(0.3 0.07 205);padding:2px 6px;border-radius:5px">PRIMARY</span></sc-if>
+                      </button>
+                    </sc-for>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== MESHCORE ===== -->
+            <sc-if value="{{ isMeshcore }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="MeshCore" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0e0d0a">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:oklch(0.32 0.06 72);border-bottom:1px solid oklch(0.2 0.04 72);position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#fbf3e6">chevron_left</span></button>
+                  <div style="font-size:13px;font-weight:600;color:#fff;position:absolute;left:0;right:0;text-align:center;pointer-events:none">MeshCore</div>
+                  <div style="position:absolute;right:8px"><span style="width:6px;height:6px;border-radius:50%;background:{{ mcStatusDot }};display:block"></span></div>
+                </div>
+                <div style="flex:none;display:flex;align-items:center;gap:9px;padding:8px 10px;background:#1a1710;border-bottom:1px solid #241f15">
+                  <div style="width:34px;height:34px;flex:none;border-radius:10px;background:oklch(0.66 0.13 72);display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:18px;color:#1c1407">key</span></div>
+                  <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;color:#eef1f4">Jess <span style="font-size:9px;font-weight:600;color:#9a8f7a;background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:5px">Companion</span></div><div style="font-size:9.5px;color:#988e7c;margin-top:1px">MC&middot;2a9f&middot;e41c &middot; ed25519</div></div>
+                  <div style="text-align:right"><div style="font-size:9px;color:#82796a">contacts</div><div style="font-size:15px;font-weight:700;color:oklch(0.82 0.11 72);line-height:1">4</div></div>
+                </div>
+                <div style="flex:none;display:flex;padding:0 8px;background:#0e0d0a;box-shadow:inset 0 -1px 0 rgba(255,255,255,0.06)">
+                  <button onClick="{{ mcTabContacts }}" style="appearance:none;border:0;cursor:pointer;flex:1;padding:6px 0;background:transparent;color:{{ mcContactsColor }};font-size:11px;font-weight:600;border-bottom:2px solid {{ mcContactsBorder }}">Contacts</button>
+                  <button onClick="{{ mcTabRooms }}" style="appearance:none;border:0;cursor:pointer;flex:1;padding:6px 0;background:transparent;color:{{ mcRoomsColor }};font-size:11px;font-weight:600;border-bottom:2px solid {{ mcRoomsBorder }}">Rooms</button>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:5px 7px 8px">
+                  <sc-for list="{{ mcRows }}" as="c" hint-placeholder-count="5">
+                    <button onClick="{{ c.run }}" onMouseEnter="{{ c.hover }}" data-fi="{{ c.i }}" style="appearance:none;border:0;cursor:pointer;width:100%;display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:3px;border-radius:10px;text-align:left;background:{{ c.bg }};box-shadow:{{ c.ring }}">
+                      <div style="width:30px;height:30px;flex:none;border-radius:8px;background:{{ c.tileBg }};display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06)"><span style="font-family:'Material Symbols Rounded';font-size:16px;color:{{ c.iconColor }}">{{ c.icon }}</span></div>
+                      <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:5px"><span style="font-size:11.5px;font-weight:600;color:#eef1f4">{{ c.name }}</span><span style="font-size:8px;font-weight:600;color:#b0a48d;background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:5px">{{ c.role }}</span></div><div style="font-size:9px;color:#8a8475;margin-top:1px">{{ c.meta }}</div></div>
+                      <span style="width:7px;height:7px;border-radius:50%;background:{{ c.onlineColor }};flex:none"></span>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== APP STORE ===== -->
+            <sc-if value="{{ isAppStore }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="App Store" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0c0e12">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:#1b2230;border-bottom:1px solid #11161d;position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#e2e6ea">chevron_left</span></button>
+                  <div style="font-size:13px;font-weight:600;color:#f2f4f6;position:absolute;left:0;right:0;text-align:center;pointer-events:none">App Store</div>
+                  <span style="position:absolute;right:9px;font-family:'Material Symbols Rounded';font-size:16px;color:#aab0b9">search</span>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:8px 8px 10px">
+                  <div style="border-radius:13px;overflow:hidden;background:linear-gradient(135deg,oklch(0.45 0.13 280),oklch(0.32 0.1 250));padding:11px 12px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.18),0 4px 12px rgba(0,0,0,0.4);margin-bottom:10px">
+                    <div style="font-size:8px;letter-spacing:0.14em;color:rgba(255,255,255,0.7);font-weight:700">FEATURED</div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:7px"><div style="width:42px;height:42px;flex:none;border-radius:11px;background:linear-gradient(150deg,oklch(0.78 0.12 150),oklch(0.6 0.14 150));display:flex;align-items:center;justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,0.4),0 3px 8px rgba(0,0,0,0.4)"><span style="font-family:'Material Symbols Rounded';font-size:24px;color:#fff">map</span></div><div style="flex:1"><div style="font-size:14px;font-weight:700;color:#fff">Node Mapper</div><div style="font-size:10px;color:rgba(255,255,255,0.8);margin-top:1px;line-height:1.3">Live mesh topology &amp; GPS positions on an offline map</div></div></div>
+                  </div>
+                  <div style="font-size:11px;font-weight:700;color:#cfd4da;padding:1px 2px 6px">Apps &amp; utilities</div>
+                  <sc-for list="{{ storeRows }}" as="a" hint-placeholder-count="6">
+                    <div data-fi="{{ a.i }}" onMouseEnter="{{ a.hover }}" style="display:flex;align-items:center;gap:9px;padding:7px 8px;margin-bottom:3px;border-radius:11px;background:{{ a.bg }};box-shadow:{{ a.ring }}">
+                      <div style="width:36px;height:36px;flex:none;border-radius:10px;background:{{ a.tileBg }};display:flex;align-items:center;justify-content:center;box-shadow:none"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#fff">{{ a.icon }}</span></div>
+                      <div style="flex:1;min-width:0"><div style="font-size:11.5px;font-weight:600;color:#eef1f4">{{ a.name }}</div><div style="display:flex;align-items:center;gap:5px;margin-top:1px"><span style="font-family:'Material Symbols Rounded';font-size:10px;color:oklch(0.82 0.11 85)">star</span><span style="font-size:9px;color:#9aa1ab">{{ a.rating }}</span><span style="font-size:9px;color:#6f7882">&middot; {{ a.cat }} &middot; {{ a.size }}</span></div></div>
+                      <button onClick="{{ a.run }}" style="appearance:none;border:0;cursor:pointer;min-width:52px;padding:5px 11px;border-radius:999px;font-size:10px;font-weight:700;color:{{ a.btnColor }};background:{{ a.btnBg }};box-shadow:{{ a.btnRing }}">{{ a.btnLabel }}</button>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== CONTACTS ===== -->
+            <sc-if value="{{ isContacts }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Contacts" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0c0e12">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:#1b2230;border-bottom:1px solid #11161d;position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#e2e6ea">chevron_left</span></button>
+                  <div style="font-size:13px;font-weight:600;color:#f2f4f6;position:absolute;left:0;right:0;text-align:center;pointer-events:none">Contacts</div>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:5px 7px 8px">
+                  <sc-for list="{{ contactRows }}" as="n" hint-placeholder-count="6">
+                    <button onClick="{{ n.run }}" onMouseEnter="{{ n.hover }}" data-fi="{{ n.i }}" style="appearance:none;border:0;cursor:pointer;width:100%;display:flex;align-items:center;gap:9px;padding:6px 8px;margin-bottom:3px;border-radius:10px;text-align:left;background:{{ n.bg }};box-shadow:{{ n.ring }}">
+                      <div style="position:relative;width:31px;height:31px;flex:none"><div style="width:31px;height:31px;border-radius:50%;background:{{ n.avBg }};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;box-shadow:none">{{ n.short }}</div><span style="position:absolute;bottom:-1px;right:-1px;width:11px;height:11px;border-radius:50%;background:#0c0e12;display:flex;align-items:center;justify-content:center"><span style="width:7px;height:7px;border-radius:50%;background:{{ n.netColor }}"></span></span></div>
+                      <div style="flex:1;min-width:0"><div style="font-size:11.5px;font-weight:600;color:#eef1f4">{{ n.name }}</div><div style="font-size:9px;color:#838a93;margin-top:1px">{{ n.id }} &middot; {{ n.role }}</div></div>
+                      <div style="text-align:right;flex:none"><div style="font-size:9px;color:#7c838c">{{ n.last }}</div><div style="font-size:9px;font-weight:600;color:{{ n.snrColor }};margin-top:1px">{{ n.snr }}</div></div>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== CONTACT DETAIL ===== -->
+            <sc-if value="{{ isContactDetail }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Contact" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0c0e12">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:#1b2230;border-bottom:1px solid #11161d;position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#e2e6ea">chevron_left</span><span style="font-size:11px;color:#cfd4da">Back</span></button>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:13px 12px">
+                  <div style="display:flex;flex-direction:column;align-items:center;text-align:center">
+                    <div style="width:54px;height:54px;border-radius:50%;background:{{ detail.avBg }};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#fff;box-shadow:none,0 4px 10px rgba(0,0,0,0.45)">{{ detail.short }}</div>
+                    <div style="font-size:15px;font-weight:700;margin-top:7px">{{ detail.name }}</div>
+                    <div style="display:flex;align-items:center;gap:5px;margin-top:3px"><span style="width:6px;height:6px;border-radius:50%;background:{{ detail.netColor }}"></span><span style="font-size:10px;font-weight:600;color:{{ detail.netColor }}">{{ detail.netName }}</span><span style="font-size:10px;color:#7c838c">&middot; {{ detail.role }}</span></div>
+                  </div>
+                  <div style="display:flex;gap:7px;margin:13px 0">
+                    <button onClick="{{ detail.message }}" style="flex:1;appearance:none;border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px;border-radius:10px;background:linear-gradient(oklch(0.78 0.11 165),oklch(0.62 0.13 165));color:#06140f;font-size:11px;font-weight:700;box-shadow:inset 0 1px 0 rgba(255,255,255,0.4),0 2px 6px rgba(0,0,0,0.3)"><span style="font-family:'Material Symbols Rounded';font-size:15px">chat_bubble</span>Message</button>
+                    <button style="flex:none;appearance:none;border:0;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:8px 13px;border-radius:10px;background:rgba(255,255,255,0.06);color:#cfd4da;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.08)"><span style="font-family:'Material Symbols Rounded';font-size:15px">route</span></button>
+                  </div>
+                  <div style="border-radius:11px;background:rgba(255,255,255,0.03);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);overflow:hidden">
+                    <sc-for list="{{ detail.specs }}" as="s" hint-placeholder-count="5"><div style="display:flex;align-items:center;justify-content:space-between;padding:8px 11px;box-shadow:inset 0 -1px 0 rgba(255,255,255,0.05)"><span style="font-size:10.5px;color:#8b939c">{{ s.k }}</span><span style="font-size:10.5px;font-weight:600;color:#dfe3e8">{{ s.v }}</span></div></sc-for>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== SETTINGS ===== -->
+            <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Settings" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0c0e12">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:#1b2230;border-bottom:1px solid #11161d;position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#e2e6ea">chevron_left</span></button>
+                  <div style="font-size:13px;font-weight:600;color:#f2f4f6;position:absolute;left:0;right:0;text-align:center;pointer-events:none">Settings</div>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:8px 9px 10px">
+                  <div style="border-radius:11px;background:rgba(255,255,255,0.035);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);padding:9px 10px;margin-bottom:10px">
+                    <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:9px;letter-spacing:0.1em;color:#7f868f;font-weight:700">AIRTIME SCHEDULER</span><span style="font-size:9px;color:#9aa1ab">{{ airtimeLabel }}</span></div>
+                    <div style="display:flex;height:7px;border-radius:4px;overflow:hidden;margin-top:7px;background:#1a1f27"><div style="width:{{ mtSlice }};background:oklch(0.66 0.12 205);transition:width .3s"></div><div style="width:{{ mcSlice }};background:oklch(0.68 0.13 72);transition:width .3s"></div></div>
+                    <div style="font-size:9px;color:#7f868f;margin-top:6px;line-height:1.4">{{ airtimeNote }}</div>
+                  </div>
+                  <div style="font-size:9px;letter-spacing:0.08em;color:#6f7882;font-weight:700;padding:2px 4px 5px">NETWORKS</div>
+                  <div style="border-radius:11px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);margin-bottom:11px">
+                    <div data-fi="0" style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:{{ row0bg }};box-shadow:{{ row0ring }},inset 0 -1px 0 rgba(255,255,255,0.05)">
+                      <div style="width:28px;height:28px;flex:none;border-radius:8px;background:oklch(0.62 0.13 205);display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:16px;color:#06181f">hub</span></div>
+                      <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:#eef1f4">Meshtastic</div><div style="font-size:9px;color:#869099;margin-top:1px">{{ mtSubtitle }}</div></div>
+                      <button onClick="{{ toggleMt }}" style="appearance:none;border:0;cursor:pointer;width:38px;height:22px;border-radius:999px;padding:2px;background:{{ mtTrack }};transition:background .2s;display:flex;justify-content:{{ mtKnob }}"><span style="width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:none"></span></button>
+                    </div>
+                    <div data-fi="1" style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:{{ row1bg }};box-shadow:{{ row1ring }}">
+                      <div style="width:28px;height:28px;flex:none;border-radius:8px;background:oklch(0.66 0.13 72);display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:16px;color:#1c1407">lan</span></div>
+                      <div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;color:#eef1f4">MeshCore</div><div style="font-size:9px;color:#988e7c;margin-top:1px">{{ mcSubtitle }}</div></div>
+                      <button onClick="{{ toggleMc }}" style="appearance:none;border:0;cursor:pointer;width:38px;height:22px;border-radius:999px;padding:2px;background:{{ mcTrack }};transition:background .2s;display:flex;justify-content:{{ mcKnob }}"><span style="width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:none"></span></button>
+                    </div>
+                  </div>
+                  <sc-for list="{{ settingGroups }}" as="g" hint-placeholder-count="4">
+                    <div style="font-size:9px;letter-spacing:0.08em;color:#6f7882;font-weight:700;padding:2px 4px 5px">{{ g.title }}</div>
+                    <div style="border-radius:11px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);margin-bottom:11px">
+                      <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+                        <div data-fi="{{ r.i }}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;background:{{ r.bg }};box-shadow:{{ r.ring }},inset 0 -1px 0 rgba(255,255,255,0.045)">
+                          <span style="font-family:'Material Symbols Rounded';font-size:17px;color:#aab0b9;width:18px;text-align:center">{{ r.icon }}</span>
+                          <span style="flex:1;font-size:11.5px;color:#e9edf2">{{ r.label }}</span>
+                          <sc-if value="{{ r.isToggle }}" hint-placeholder-val="{{ true }}"><button onClick="{{ r.run }}" style="appearance:none;border:0;cursor:pointer;width:38px;height:22px;border-radius:999px;padding:2px;background:{{ r.track }};display:flex;justify-content:{{ r.knob }}"><span style="width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:none"></span></button></sc-if>
+                          <sc-if value="{{ r.isValue }}" hint-placeholder-val="{{ true }}"><button onClick="{{ r.run }}" style="appearance:none;border:0;cursor:pointer;display:flex;align-items:center;gap:2px;font-size:11px;color:#9aa1ab;font-weight:500"><span>{{ r.value }}</span><span style="font-family:'Material Symbols Rounded';font-size:15px;color:#6f7882">chevron_right</span></button></sc-if>
+                          <sc-if value="{{ r.isNav }}" hint-placeholder-val="{{ true }}"><button onClick="{{ r.run }}" style="appearance:none;border:0;cursor:pointer;display:flex;align-items:center;gap:2px;font-size:10px;color:#7c838c"><span>{{ r.value }}</span><span style="font-family:'Material Symbols Rounded';font-size:16px;color:#6f7882">chevron_right</span></button></sc-if>
+                          <sc-if value="{{ r.isSlider }}" hint-placeholder-val="{{ true }}"><div style="width:96px;display:flex;align-items:center"><div style="flex:1;height:5px;border-radius:3px;background:#22272f;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:{{ r.value }};border-radius:3px;background:linear-gradient(90deg,oklch(0.7 0.1 165),oklch(0.82 0.12 165))"></div><div style="position:absolute;top:50%;left:{{ r.value }};width:11px;height:11px;border-radius:50%;background:#fff;transform:translate(-50%,-50%);box-shadow:none"></div></div></div></sc-if>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-for>
+                  <div style="font-size:9px;letter-spacing:0.08em;color:#6f7882;font-weight:700;padding:2px 4px 5px">ABOUT</div>
+                  <div style="border-radius:11px;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06)">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;box-shadow:inset 0 -1px 0 rgba(255,255,255,0.045)"><span style="font-size:11px;color:#8b939c">Device</span><span style="font-size:11px;color:#dfe3e8;font-weight:500">LilyGo T-Deck</span></div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px"><span style="font-size:11px;color:#8b939c">Firmware</span><span style="font-size:11px;color:#dfe3e8;font-weight:500">LimitlezzOS 1.0</span></div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== SYSTEM (from Settings) ===== -->
+            <sc-if value="{{ isSystem }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="System" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0c0e12">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:#1b2230;border-bottom:1px solid #11161d;position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#e2e6ea">chevron_left</span><span style="font-size:11px;color:#cfd4da">Settings</span></button>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:10px 11px">
+                  <div style="display:flex;align-items:center;gap:13px;margin-bottom:12px">
+                    <div style="position:relative;width:58px;height:58px;flex:none;border-radius:50%;background:conic-gradient(oklch(0.82 0.13 145) 0% 87%, #20252d 87% 100%);display:flex;align-items:center;justify-content:center"><div style="width:46px;height:46px;border-radius:50%;background:#0c0e12;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:16px;font-weight:700;color:#eef1f4;line-height:1">87%</span><span style="font-size:7px;color:#7f868f">3.94V</span></div></div>
+                    <div style="flex:1"><div style="font-size:13px;font-weight:700;color:#eef1f4">14h 20m left</div><div style="font-size:9.5px;color:#869099;margin-top:1px">Discharging &middot; -142 mA</div><div style="display:inline-flex;align-items:center;gap:4px;margin-top:5px;padding:2px 7px;border-radius:999px;background:oklch(0.3 0.06 145)"><span style="width:5px;height:5px;border-radius:50%;background:oklch(0.82 0.13 145)"></span><span style="font-size:8.5px;font-weight:600;color:oklch(0.84 0.1 145)">Battery healthy</span></div></div>
+                  </div>
+                  <sc-for list="{{ sysStats }}" as="s" hint-placeholder-count="5">
+                    <div style="margin-bottom:8px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px"><span style="font-size:10px;color:#9aa1ab">{{ s.label }}</span><span style="font-size:10px;font-weight:600;color:#dfe3e8">{{ s.value }}</span></div><div style="height:5px;border-radius:3px;background:#1a1f27;overflow:hidden"><div style="height:100%;width:{{ s.pct }};border-radius:3px;background:{{ s.barColor }}"></div></div></div>
+                  </sc-for>
+                  <div style="display:flex;gap:7px;margin-top:11px">
+                    <div style="flex:1;border-radius:9px;background:rgba(255,255,255,0.03);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);padding:8px"><div style="font-size:8.5px;color:#7f868f">LoRa TX / RX</div><div style="font-size:12px;font-weight:700;color:#dfe3e8;margin-top:2px">412 / 1284</div></div>
+                    <div style="flex:1;border-radius:9px;background:rgba(255,255,255,0.03);box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);padding:8px"><div style="font-size:8.5px;color:#7f868f">Air utilization</div><div style="font-size:12px;font-weight:700;color:#dfe3e8;margin-top:2px">3.4%</div></div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== TERMINAL ===== -->
+            <sc-if value="{{ isTerminal }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Terminal" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#070809">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:#161b22;border-bottom:1px solid #0c0f14;position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#cfd4da">chevron_left</span></button>
+                  <div style="font-size:13px;font-weight:600;color:#cfd4da;position:absolute;left:0;right:0;text-align:center;pointer-events:none">Terminal</div>
+                  <span style="position:absolute;right:8px;font-size:8.5px;color:#5f6a5f;font-family:'SF Mono',Menlo,Consolas,monospace">115200</span>
+                </div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:8px 9px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:9.5px;line-height:1.55">
+                  <sc-for list="{{ termLines }}" as="l" hint-placeholder-count="10"><div style="white-space:pre-wrap;color:{{ l.color }}">{{ l.text }}</div></sc-for>
+                  <div style="display:flex;align-items:center;color:#7fe0a8"><span>limitlezz:~$ </span><span style="display:inline-block;width:6px;height:12px;background:#7fe0a8;margin-left:2px;animation:lzBlink 1s steps(1) infinite"></span></div>
+                </div>
+              </div>
+            </sc-if>
+
+            <!-- ===== FILES ===== -->
+            <sc-if value="{{ isFiles }}" hint-placeholder-val="{{ true }}">
+              <div data-screen-label="Files" style="position:absolute;inset:0;display:flex;flex-direction:column;background:#0c0e12">
+                <div style="height:29px;flex:none;display:flex;align-items:center;padding:0 5px;background:#1b2230;border-bottom:1px solid #11161d;position:relative;z-index:3">
+                  <button onClick="{{ back }}" style="appearance:none;border:0;background:transparent;cursor:pointer;display:flex;align-items:center;padding:3px 4px"><span style="font-family:'Material Symbols Rounded';font-size:19px;color:#e2e6ea">chevron_left</span></button>
+                  <div style="font-size:13px;font-weight:600;color:#f2f4f6;position:absolute;left:0;right:0;text-align:center;pointer-events:none">Files</div>
+                </div>
+                <div style="flex:none;padding:5px 11px;font-size:9.5px;color:#7f868f;font-family:'SF Mono',Menlo,Consolas,monospace;box-shadow:inset 0 -1px 0 rgba(255,255,255,0.05)">/sdcard</div>
+                <div ref="{{ scrollRef }}" style="flex:1;overflow-y:auto;padding:5px 7px 8px">
+                  <sc-for list="{{ fileRows }}" as="f" hint-placeholder-count="6">
+                    <button onClick="{{ f.run }}" onMouseEnter="{{ f.hover }}" data-fi="{{ f.i }}" style="appearance:none;border:0;cursor:pointer;width:100%;display:flex;align-items:center;gap:9px;padding:7px 9px;margin-bottom:2px;border-radius:9px;text-align:left;background:{{ f.bg }};box-shadow:{{ f.ring }}">
+                      <span style="font-family:'Material Symbols Rounded';font-size:19px;color:{{ f.iconColor }}">{{ f.icon }}</span>
+                      <span style="flex:1;font-size:11.5px;color:#e9edf2;font-weight:{{ f.weight }}">{{ f.name }}</span>
+                      <span style="font-size:9.5px;color:#7c838c;font-family:'SF Mono',Menlo,Consolas,monospace">{{ f.meta }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+          </div>
+        </div>
+
+        <!-- ===== TRACKBALL STRIP ===== -->
+        <div style="margin-top:9px;height:34px;border-radius:10px;background:linear-gradient(#202327,#16181b);box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),inset 0 -2px 4px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;gap:15px;position:relative">
+          <div style="display:flex;align-items:center;font-family:'Material Symbols Rounded';font-size:15px"><span style="color:#363c45;margin-right:-6px">chevron_right</span><span style="color:#4a515c;margin-right:-6px">chevron_right</span><span style="color:oklch(0.55 0.06 205)">chevron_right</span></div>
+          <div onPointerDown="{{ tbDown }}" onPointerMove="{{ tbMove }}" onPointerUp="{{ tbUp }}" title="Trackball — drag to move, click to select" style="width:30px;height:30px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#4a4f57 0%,#23262b 55%,#0e1013 100%);box-shadow:inset 0 1px 1px rgba(255,255,255,0.3),inset 0 -2px 4px rgba(0,0,0,0.7),0 0 0 2px #0d0e10,0 0 0 3px rgba(255,255,255,0.06),0 2px 4px rgba(0,0,0,0.5);cursor:grab;touch-action:none"></div>
+          <div style="display:flex;align-items:center;font-family:'Material Symbols Rounded';font-size:15px"><span style="color:oklch(0.55 0.06 205);margin-right:-6px">chevron_left</span><span style="color:#4a515c;margin-right:-6px">chevron_left</span><span style="color:#363c45">chevron_left</span></div>
+        </div>
+
+        <!-- ===== KEYBOARD ===== -->
+        <div style="margin-top:8px;padding:0 1px">
+          <sc-for list="{{ kbRows }}" as="row" hint-placeholder-count="3">
+            <div style="display:flex;gap:4px;justify-content:center;margin-bottom:4px">
+              <sc-for list="{{ row.keys }}" as="k" hint-placeholder-count="10">
+                <div style="position:relative;width:28px;height:22px;border-radius:6px;background:linear-gradient(#34373d,#212327);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),0 1px 1px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:{{ k.size }};font-weight:600;color:#c4c9d0"><span style="position:absolute;top:2px;left:4px;font-size:6px;color:#7b818a;font-weight:500">{{ k.s }}</span>{{ k.l }}</div>
+              </sc-for>
+            </div>
+          </sc-for>
+          <div style="display:flex;gap:4px;justify-content:center;align-items:center;margin-bottom:2px">
+            <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(#2a2d32,#1c1e22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.08)"></div>
+            <div style="width:28px;height:22px;border-radius:6px;background:linear-gradient(#34373d,#212327);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:12px;color:#9aa1ab">arrow_back_ios_new</span></div>
+            <div style="position:relative;width:28px;height:22px;border-radius:6px;background:linear-gradient(#34373d,#212327);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center;font-size:8px;color:#c4c9d0"><span style="position:absolute;top:2px;left:4px;font-size:6px;color:#7b818a">0</span><span style="font-family:'Material Symbols Rounded';font-size:11px;color:#9aa1ab">mic</span></div>
+            <div style="flex:1;max-width:104px;height:22px;border-radius:6px;background:linear-gradient(#34373d,#212327);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),0 1px 1px rgba(0,0,0,0.5)"></div>
+            <div style="width:28px;height:22px;border-radius:6px;background:linear-gradient(#2a2d32,#1d1f23);box-shadow:inset 0 1px 0 rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:#9aa1ab">sym</div>
+            <div style="width:28px;height:22px;border-radius:6px;background:linear-gradient(#34373d,#212327);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12);display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:13px;color:#9aa1ab">keyboard_arrow_down</span></div>
+            <div style="width:22px;height:22px;border-radius:50%;background:linear-gradient(#2a2d32,#1c1e22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.08)"></div>
+          </div>
+        </div>
+        <!-- chin -->
+        <div style="display:flex;align-items:center;justify-content:center;gap:7px;padding:7px 0 1px"><span style="color:#3a4049;font-size:9px">&#10094;</span><span style="font-size:7px;letter-spacing:0.18em;color:#5b626c;font-weight:700">LILYGO&reg;</span><span style="color:#3a4049;font-size:9px">&#10095;</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div style="display:flex;align-items:center;gap:14px;font-size:11.5px;color:#7d848d;flex-wrap:wrap;justify-content:center;margin-top:2px">
+    <span style="display:flex;align-items:center;gap:5px"><span style="font-family:'Material Symbols Rounded';font-size:15px;color:#9aa1ab">keyboard</span>Arrow keys move &middot; Enter selects &middot; Esc back</span>
+    <span style="opacity:0.5">|</span>
+    <span>Or drag the trackball</span>
+  </div>
+
+  <div style="font-size:11px;color:#565d66;margin-top:18px">LimitlezzOS &middot; concept OS for LilyGo T-Deck &middot; Meshtastic + MeshCore</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const FOCUS='oklch(0.95 0.02 220)';
+const CYAN='oklch(0.74 0.12 205)';
+const AMBER='oklch(0.78 0.13 72)';
+
+const APPS=[
+  {id:'messages',name:'Messages',icon:'forum',hue:165,sub:'5 chats \u00b7 2 nets'},
+  {id:'meshtastic',name:'Meshtastic',icon:'hub',hue:205,sub:'JESS \u00b7 7 nodes'},
+  {id:'meshcore',name:'MeshCore',icon:'lan',hue:72,sub:'Companion \u00b7 5'},
+  {id:'contacts',name:'Contacts',icon:'group',hue:318,sub:'9 nodes'},
+  {id:'appstore',name:'App Store',icon:'storefront',hue:280,sub:'4 updates'},
+  {id:'terminal',name:'Terminal',icon:'terminal',hue:null,sub:'115200 baud'},
+  {id:'files',name:'Files',icon:'folder',hue:242,sub:'/sdcard'},
+  {id:'settings',name:'Settings',icon:'settings',hue:null,sub:'Networks \u00b7 Radio'},
+];
+
+const THREADS=[
+  {id:'ava',name:'Ava Reyes',net:'meshtastic',addr:'!7c3a91d0',text:'see you at the ridge in 20',t:'2m',unread:2,path:'2 hops'},
+  {id:'dmitri',name:'Dmitri K',net:'meshcore',addr:'MC\u00b74f8e',text:'sending coords now',t:'1h',unread:1,path:'3 hops'},
+  {id:'base',name:'Base-01',net:'meshtastic',addr:'!a1b2c3d4',text:'copy, staying on LongFast \u2014 73',t:'14m',unread:0,path:'direct'},
+  {id:'ridge',name:'Ridge Repeater',net:'meshcore',addr:'MC\u00b79a3f',text:'[auto] battery 78% \u00b7 uplink ok',t:'1h',unread:0,path:'direct'},
+  {id:'sam',name:'Sam OK1QRP',net:'meshtastic',addr:'!9f21de33',text:'antenna swr looks good now',t:'3h',unread:0,path:'1 hop'},
+  {id:'weather',name:'Weather-Sensor',net:'meshcore',addr:'MC\u00b7sens',text:'[telemetry] 2.4\u00b0C \u00b7 1014 hPa',t:'4h',unread:0,path:'direct'},
+];
+const MSGS={
+  ava:[{from:1,text:'heading up the summit trail now'},{self:1,text:"copy, I'm at the basecamp junction"},{from:1,text:'nice \u2014 watch the loose rock past the saddle'},{self:1,text:'will do. radio check?'},{from:1,text:'5 by 9, -7 SNR. see you at the ridge in 20'}],
+  dmitri:[{from:1,text:'trailhead is clear, nobody around'},{self:1,text:'good. did the repeater come back up?'},{from:1,text:'yes \u2014 ridge repeater is solid now'},{from:1,text:'sending coords now'}],
+};
+const CHANS=[
+  {id:'longfast',name:'LongFast',net:'meshtastic',icon:'tag',sub:'Primary \u00b7 7 nodes',text:'B01: anyone copy on the ridge?',t:'8m'},
+  {id:'emergency',name:'Emergency',net:'meshtastic',icon:'campaign',sub:'Encrypted \u00b7 12 nodes',text:'\u2014 channel quiet \u2014',t:'2h'},
+  {id:'basecamp',name:'Base Camp',net:'meshcore',icon:'forum',sub:'Room \u00b7 6 members',text:'Ava: heading out, radio on',t:'5m'},
+  {id:'trailnet',name:'Trail Net',net:'meshcore',icon:'forum',sub:'Room \u00b7 9 members',text:'Dmitri: trailhead clear',t:'22m'},
+];
+const NODES=[
+  {name:'Base-01',short:'B01',net:'meshtastic',id:'!a1b2c3d4',role:'Router',snr:'+9.5',batt:92,last:'now',hw:'T-Beam',dist:'0.0 km'},
+  {name:'Summit Relay',short:'SMT',net:'meshtastic',id:'!5e6f7a8b',role:'Router',snr:'+2.1',batt:100,last:'1m',hw:'RAK4631',dist:'4.2 km'},
+  {name:'Ava Reyes',short:'AVA',net:'meshtastic',id:'!7c3a91d0',role:'Client',snr:'-7.2',batt:68,last:'2m',hw:'T-Deck',dist:'1.8 km'},
+  {name:'Sam OK1QRP',short:'SAM',net:'meshtastic',id:'!9f21de33',role:'Client',snr:'-11.8',batt:45,last:'9m',hw:'Heltec V3',dist:'6.7 km'},
+  {name:'River Cabin',short:'RVR',net:'meshtastic',id:'!1c2d3e4f',role:'Client',snr:'-15.1',batt:80,last:'28m',hw:'T-Echo',dist:'11.3 km'},
+  {name:'Ridge Repeater',short:'RDG',net:'meshcore',id:'MC\u00b79a3f',role:'Repeater',snr:'+5.4',batt:78,last:'now',hw:'RAK19007',dist:'3.1 km'},
+  {name:'Dmitri K',short:'DMI',net:'meshcore',id:'MC\u00b74f8e',role:'Chat',snr:'-9.0',batt:54,last:'1h',hw:'T-Deck',dist:'2.6 km'},
+  {name:'Base Camp',short:'BCR',net:'meshcore',id:'MC\u00b7room',role:'Room',snr:'\u2014',batt:null,last:'5m',hw:'Room Server',dist:'3.1 km'},
+  {name:'Weather-Sensor',short:'WX',net:'meshcore',id:'MC\u00b7sens',role:'Sensor',snr:'+1.2',batt:88,last:'1m',hw:'RAK Sensor',dist:'3.0 km'},
+];
+const STORE=[
+  {id:'calc',name:'Calculator',cat:'Utilities',size:'0.1 MB',rating:'4.5',icon:'calculate',hue:40,state:'get'},
+  {id:'notes',name:'Notes',cat:'Productivity',size:'0.2 MB',rating:'4.4',icon:'sticky_note_2',hue:95,state:'get'},
+  {id:'aprs',name:'APRS Bridge',cat:'Connectivity',size:'0.4 MB',rating:'4.6',icon:'satellite_alt',hue:200,state:'get'},
+  {id:'weather',name:'Weather Mesh',cat:'Sensors',size:'0.6 MB',rating:'4.3',icon:'thermostat',hue:48,state:'get'},
+  {id:'bbs',name:'Mesh BBS',cat:'Messaging',size:'0.3 MB',rating:'4.1',icon:'dns',hue:280,state:'update'},
+  {id:'scope',name:'Signal Scope',cat:'Utilities',size:'0.9 MB',rating:'4.7',icon:'graphic_eq',hue:330,state:'get'},
+  {id:'chess',name:'LoRa Chess',cat:'Games',size:'0.5 MB',rating:'4.2',icon:'videogame_asset',hue:18,state:'get'},
+];
+const FILES=[
+  {name:'config',dir:1,meta:'4 items'},{name:'logs',dir:1,meta:'12 items'},{name:'maps',dir:1,meta:'2 items'},
+  {name:'nodes.db',meta:'48 KB'},{name:'channel.url',meta:'212 B'},{name:'firmware.bin',meta:'3.1 MB'},{name:'README.txt',meta:'1.4 KB'},
+];
+const KBRAW=[
+  [['Q','#'],['W','1'],['E','2'],['R','3'],['T','('],['Y',')'],['U','-'],['I','_'],['O','+'],['P','@']],
+  [['A','*'],['S','4'],['D','5'],['F','6'],['G','/'],['H',':'],['J',';'],['K','\''],['L','"'],['\u232b','']],
+  [['alt',''],['Z','7'],['X','8'],['C','9'],['V','?'],['B','!'],['N',','],['M','.'],['$',''],['\u21b5','']],
+];
+const KB=KBRAW.map(r=>({keys:r.map(p=>({l:p[0],s:p[1],size:p[0].length>1?'7px':'9px'}))}));
+const TERM=[
+  {text:'LimitlezzOS 1.0  \u2014  serial console',color:'#5f6a72'},
+  {text:'limitlezz:~$ mesh --info',color:'#cfd4da'},
+  {text:'owner : Jess (JESS)',color:'#7fe0a8'},
+  {text:'nets  : meshtastic[on] meshcore[on]',color:'#7fe0a8'},
+  {text:'nodes : 7 reachable, 2 routers',color:'#7fe0a8'},
+  {text:'region: US   preset: LONG_FAST',color:'#7fe0a8'},
+  {text:'limitlezz:~$ mesh --nodes --short',color:'#cfd4da'},
+  {text:'B01  +9.5  0hop  92%  router',color:'#7fe0a8'},
+  {text:'SMT  +2.1  1hop 100%  router',color:'#7fe0a8'},
+  {text:'AVA  -7.2  2hop  68%  client',color:'#7fe0a8'},
+  {text:'limitlezz:~$ mesh --airtime',color:'#cfd4da'},
+  {text:'tx 412  rx 1284  util 3.4%',color:'#7fe0a8'},
+];
+const SYS=[
+  {label:'CPU \u00b7 ESP32-S3 @ 240MHz',value:'12%',pct:'12%',barColor:'oklch(0.74 0.12 205)'},
+  {label:'RAM',value:'84 / 512 KB',pct:'16%',barColor:'oklch(0.74 0.12 205)'},
+  {label:'Flash storage',value:'6.2 / 16 MB',pct:'39%',barColor:'oklch(0.78 0.12 165)'},
+  {label:'Temperature',value:'24 \u00b0C',pct:'34%',barColor:'oklch(0.8 0.12 145)'},
+  {label:'Uptime',value:'3d 04:12',pct:'62%',barColor:'oklch(0.78 0.1 280)'},
+];
+
+function tileBg(hue){ return hue==null?'#444b56':`oklch(0.64 0.13 ${hue})`; }
+function avBg(net){ return net==='meshtastic'?'oklch(0.55 0.12 205)':'oklch(0.58 0.13 60)'; }
+function netColor(net){ return net==='meshtastic'?CYAN:AMBER; }
+function netName(net){ return net==='meshtastic'?'Meshtastic':'MeshCore'; }
+function snrColor(snr){ const v=parseFloat(snr); if(isNaN(v)) return '#7c838c'; if(v>=0) return 'oklch(0.8 0.12 145)'; if(v>=-10) return 'oklch(0.82 0.11 85)'; return 'oklch(0.72 0.13 30)'; }
+
+class Component extends DCLogic {
+  state={
+    view:'lock', launcher:'grid', focus:0,
+    netMt:true, netMc:true,
+    msgTab:'dms', msgFilter:'all', convoMsgs:[], draft:'',
+    mtTab:'nodes', mcTab:'contacts',
+    contactSel:null,
+    settings:{region:'US',preset:'Long/Fast',tx:'High',wifi:false,gps:true,bright:74,dark:true,timeout:'30s',save:true},
+    storeOv:{},
+  };
+  navStack=[];
+  componentDidMount(){ this._k=this.onKey.bind(this); window.addEventListener('keydown',this._k); }
+  componentWillUnmount(){ window.removeEventListener('keydown',this._k); }
+  componentDidUpdate(){ this.keepVisible(); }
+  setScroll(el){ this.scrollEl=el; }
+  keepVisible(){ const el=this.scrollEl; if(!el) return; const row=el.querySelector('[data-fi="'+this.state.focus+'"]'); if(!row) return; const rt=row.offsetTop, rb=rt+row.offsetHeight; if(rt<el.scrollTop) el.scrollTop=rt-8; else if(rb>el.scrollTop+el.clientHeight) el.scrollTop=rb-el.clientHeight+8; }
+
+  go(view,extra){ this.navStack.push(this.state.view); this.setState({view,focus:0,...(extra||{})}); }
+  openApp(id){ this.go(id); }
+  back(){ const v=this.navStack.pop(); this.setState({view:(v&&v!=='lock')?v:'home',focus:0}); }
+  unlock(){ this.navStack=[]; this.setState({view:'home',focus:0}); }
+
+  visibleThreads(){ const f=this.state.msgFilter; return THREADS.filter(t=>f==='all'||t.net===f); }
+  visibleChannels(){ const f=this.state.msgFilter; return CHANS.filter(c=>f==='all'||c.net===f); }
+  netOn(net){ return net==='meshtastic'?this.state.netMt:this.state.netMc; }
+
+  buildNav(){
+    const s=this.state;
+    switch(s.view){
+      case 'home':{ const cols=s.launcher==='grid'?4:s.launcher==='list'?1:APPS.length; return {cols,items:APPS.map(a=>({run:()=>this.openApp(a.id)}))}; }
+      case 'messages': return s.msgTab==='dms'?{cols:1,items:this.visibleThreads().map(t=>({run:()=>this.openConvo(t)}))}:{cols:1,items:this.visibleChannels().map(()=>({run:()=>{}}))};
+      case 'meshtastic': return s.mtTab==='nodes'?{cols:1,items:NODES.filter(n=>n.net==='meshtastic').map(n=>({run:()=>this.go('contact',{contactSel:n})}))}:{cols:1,items:CHANS.filter(c=>c.net==='meshtastic').map(()=>({run:()=>{}}))};
+      case 'meshcore':{ const list=NODES.filter(n=>n.net==='meshcore'&&(s.mcTab==='rooms'?n.role==='Room':n.role!=='Room')); return {cols:1,items:list.map(n=>({run:()=>this.go('contact',{contactSel:n})}))}; }
+      case 'contacts': return {cols:1,items:NODES.map(n=>({run:()=>this.go('contact',{contactSel:n})}))};
+      case 'appstore': return {cols:1,items:STORE.map(a=>({run:()=>this.storeInstall(a)}))};
+      case 'settings':{ const rows=this.settingRows(); return {cols:1,items:[{run:()=>this.toggleNet('meshtastic')},{run:()=>this.toggleNet('meshcore')},...rows.map(r=>({run:()=>this.settingAction(r),kind:r.kind}))]}; }
+      case 'files': return {cols:1,items:FILES.map(()=>({run:()=>{}}))};
+      case 'lock': return {cols:1,items:[{run:()=>this.unlock()}]};
+      default: return {cols:1,items:[]};
+    }
+  }
+  move(dir){
+    const s=this.state;
+    if(s.view==='settings'&&s.focus>=2){ const r=this.settingRows()[s.focus-2]; if(r&&r.kind==='slider'&&(dir==='left'||dir==='right')){ const d=dir==='right'?6:-6; this.setState({settings:{...s.settings,bright:Math.max(5,Math.min(100,s.settings.bright+d))}}); return; } }
+    const nav=this.buildNav(); const n=nav.items.length, cols=nav.cols, f=s.focus;
+    if(n===0){ const el=this.scrollEl; if(el) el.scrollTop+=(dir==='down'?60:dir==='up'?-60:0); return; }
+    let nf=f;
+    if(dir==='up') nf=f-cols; else if(dir==='down') nf=f+cols;
+    else if(dir==='left'){ if(f%cols>0) nf=f-1; } else if(dir==='right'){ if(f%cols<cols-1&&f+1<n) nf=f+1; }
+    if(nf<0||nf>=n) nf=f;
+    if(nf!==f) this.setState({focus:nf});
+  }
+  activate(){ const it=this.buildNav().items[this.state.focus]; if(it&&it.run) it.run(); }
+  onKey(e){
+    const tag=(document.activeElement&&document.activeElement.tagName)||'';
+    if(tag==='INPUT'||tag==='TEXTAREA'){ if(e.key==='Enter'){ e.preventDefault(); this.sendMsg(); } return; }
+    const v=this.state.view;
+    if(e.key==='ArrowUp'){ e.preventDefault(); this.move('up'); }
+    else if(e.key==='ArrowDown'){ e.preventDefault(); this.move('down'); }
+    else if(e.key==='ArrowLeft'){ e.preventDefault(); this.move('left'); }
+    else if(e.key==='ArrowRight'){ e.preventDefault(); this.move('right'); }
+    else if(e.key==='Enter'){ e.preventDefault(); this.activate(); }
+    else if(e.key==='Escape'||e.key==='Backspace'){ if(v!=='lock'){ e.preventDefault(); this.back(); } }
+    else if(v==='messages'){ if(e.key==='1') this.setFilter('all'); else if(e.key==='2') this.setFilter('meshtastic'); else if(e.key==='3') this.setFilter('meshcore'); }
+  }
+  tbDown(e){ this.tb={x:e.clientX,y:e.clientY,moved:false}; try{e.target.setPointerCapture(e.pointerId);}catch(_){} }
+  tbMove(e){ if(!this.tb) return; const dx=e.clientX-this.tb.x, dy=e.clientY-this.tb.y, T=11; if(Math.abs(dx)>T||Math.abs(dy)>T){ const dir=Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'); this.move(dir); this.tb.x=e.clientX; this.tb.y=e.clientY; this.tb.moved=true; } }
+  tbUp(){ if(this.tb&&!this.tb.moved) this.activate(); this.tb=null; }
+
+  setMsgTab(t){ this.setState({msgTab:t,focus:0}); }
+  setFilter(f){ this.setState({msgFilter:f,focus:0}); }
+  compose(){ this.go('contacts'); }
+  openConvo(t){ const msgs=(MSGS[t.id]||[{from:1,text:t.text}]).map(m=>({...m})); this._cvo=t; this.go('convo',{convoMsgs:msgs,draft:''}); }
+  onDraft(e){ this.setState({draft:e.target.value}); }
+  sendMsg(){ const d=(this.state.draft||'').trim(); if(!d) return; this.setState({convoMsgs:[...this.state.convoMsgs,{self:1,text:d}],draft:''}); setTimeout(()=>{ if(this.scrollEl) this.scrollEl.scrollTop=this.scrollEl.scrollHeight; },20); }
+
+  toggleNet(net){ if(net==='meshtastic') this.setState({netMt:!this.state.netMt}); else this.setState({netMc:!this.state.netMc}); }
+  settingRows(){ const s=this.state.settings; return [
+    {key:'region',label:'Region',icon:'public',kind:'value',value:s.region,cycle:['US','EU868','ANZ','CN','JP']},
+    {key:'preset',label:'Modem preset',icon:'graphic_eq',kind:'value',value:s.preset,cycle:['Long/Fast','Long/Slow','Med/Fast','Short/Fast']},
+    {key:'tx',label:'TX power',icon:'cell_tower',kind:'value',value:s.tx,cycle:['Low','Medium','High','Max']},
+    {key:'wifi',label:'Wi-Fi',icon:'wifi',kind:'toggle',value:s.wifi},
+    {key:'gps',label:'GPS',icon:'location_on',kind:'toggle',value:s.gps},
+    {key:'bright',label:'Brightness',icon:'brightness_high',kind:'slider',value:s.bright},
+    {key:'dark',label:'Dark mode',icon:'dark_mode',kind:'toggle',value:s.dark},
+    {key:'timeout',label:'Sleep after',icon:'schedule',kind:'value',value:s.timeout,cycle:['15s','30s','1m','5m','Never']},
+    {key:'save',label:'Power saving',icon:'bolt',kind:'toggle',value:s.save},
+    {key:'system',label:'System & battery',icon:'monitoring',kind:'nav',value:'87% \u00b7 24\u00b0C',target:'system'},
+  ]; }
+  settingAction(r){ if(r.kind==='nav'){ this.go(r.target); return; } const s={...this.state.settings}; if(r.kind==='toggle'){ s[r.key]=!s[r.key]; this.setState({settings:s}); } else if(r.kind==='value'){ const i=r.cycle.indexOf(s[r.key]); s[r.key]=r.cycle[(i+1)%r.cycle.length]; this.setState({settings:s}); } }
+
+  storeState(a){ return this.state.storeOv[a.id]||a.state; }
+  storeInstall(a){ const st=this.storeState(a); if(st==='open') return; const ov={...this.state.storeOv}; ov[a.id]='installing'; this.setState({storeOv:ov}); setTimeout(()=>{ const o2={...this.state.storeOv}; o2[a.id]='open'; this.setState({storeOv:o2}); },1100); }
+
+  rowFx(on){ return { bg:on?'#1c222b':'#13161c', ring:on?`inset 0 0 0 2px ${FOCUS}`:'inset 0 0 0 1px #232a33' }; }
+  seg(active){ return active?{bg:'linear-gradient(#3a4750,#28323a)',color:'#fff'}:{bg:'transparent',color:'#9aa1ab'}; }
+
+  renderVals(){
+    const s=this.state, f=s.focus;
+    const fx=(i)=>this.rowFx(i===f);
+
+    const threads=this.visibleThreads();
+    const msgRows=threads.map((t,i)=>{ const e=fx(i); return {...t,i,bg:e.bg,ring:e.ring,run:()=>this.openConvo(t),hover:()=>this.setState({focus:i}),initial:t.name[0],avBg:avBg(t.net),netColor:netColor(t.net),snipColor:t.unread?'#cfd4da':'#838a93',dim:this.netOn(t.net)?'1':'0.4'}; });
+    const channels=this.visibleChannels();
+    const channelRows=channels.map((c,i)=>{ const e=fx(i); return {...c,i,bg:e.bg,ring:e.ring,run:()=>{},hover:()=>this.setState({focus:i}),tileBg:tileBg(c.net==='meshtastic'?205:72),dim:this.netOn(c.net)?'1':'0.4'}; });
+    let netDisabledNote=null;
+    if(s.msgFilter==='all'){ const off=[]; if(!s.netMt) off.push('Meshtastic'); if(!s.netMc) off.push('MeshCore'); if(off.length) netDisabledNote=off.join(' & ')+' disabled in Settings \u2014 conversations hidden, history kept.'; }
+
+    const t=this._cvo||THREADS[0];
+    const convo={name:t.name,addr:t.addr,path:t.path,netColor:netColor(t.net),netName:netName(t.net),sendBg:t.net==='meshtastic'?'oklch(0.55 0.12 205)':'oklch(0.58 0.13 72)'};
+    const convoMsgs=(s.convoMsgs||[]).map(m=>({text:m.text,t:m.t||'14:2'+(Math.floor(Math.random()*9)),justify:m.self?'flex-end':'flex-start',align:m.self?'flex-end':'flex-start',bubbleBg:m.self?'oklch(0.68 0.12 165)':'#1c212a',textColor:m.self?'#06140f':'#e3e7ec'}));
+
+    const mtNodes=NODES.filter(n=>n.net==='meshtastic');
+    const mtNodeRows=mtNodes.map((n,i)=>{ const e=fx(i); return {...n,i,bg:e.bg,ring:e.ring,run:()=>this.go('contact',{contactSel:n}),hover:()=>this.setState({focus:i}),snrColor:snrColor(n.snr)}; });
+    const mtChans=CHANS.filter(c=>c.net==='meshtastic');
+    const mtChannelRows=mtChans.map((c,i)=>{ const e=fx(i); return {...c,i,bg:e.bg,ring:e.ring,run:()=>{},hover:()=>this.setState({focus:i}),primary:c.id==='longfast'}; });
+
+    const mcList=NODES.filter(n=>n.net==='meshcore'&&(s.mcTab==='rooms'?n.role==='Room':n.role!=='Room'));
+    const mcRows=mcList.map((c,i)=>{ const e=fx(i); const ic=c.role==='Repeater'?'router':c.role==='Room'?'forum':c.role==='Sensor'?'sensors':'person'; return {...c,i,bg:e.bg,ring:e.ring,run:()=>this.go('contact',{contactSel:c}),hover:()=>this.setState({focus:i}),icon:ic,iconColor:AMBER,tileBg:'oklch(0.3 0.05 72)',meta:c.id+' \u00b7 '+c.dist+' \u00b7 '+c.last,onlineColor:(c.last==='now'||c.last.indexOf('m')>-1)?'oklch(0.8 0.12 145)':'#4a515b'}; });
+
+    const storeRows=STORE.map((a,i)=>{ const e=fx(i); const st=this.storeState(a); const lbl=st==='installing'?'\u2026':st==='open'?'OPEN':st==='update'?'UPDATE':'GET'; const isOpen=st==='open'; return {...a,i,bg:e.bg,ring:e.ring,run:()=>this.storeInstall(a),hover:()=>this.setState({focus:i}),tileBg:tileBg(a.hue),btnLabel:lbl,btnColor:isOpen?'#cfd4da':'#06140f',btnBg:isOpen?'#222a33':'oklch(0.7 0.12 165)',btnRing:isOpen?'inset 0 0 0 1px rgba(255,255,255,0.12)':'inset 0 1px 0 rgba(255,255,255,0.4)'}; });
+
+    const contactRows=NODES.map((n,i)=>{ const e=fx(i); return {...n,i,bg:e.bg,ring:e.ring,run:()=>this.go('contact',{contactSel:n}),hover:()=>this.setState({focus:i}),avBg:avBg(n.net),netColor:netColor(n.net),snrColor:snrColor(n.snr)}; });
+
+    const cs=s.contactSel||NODES[0];
+    const detail={short:cs.short,name:cs.name,avBg:avBg(cs.net),netColor:netColor(cs.net),netName:netName(cs.net),role:cs.role,message:()=>{ const th=THREADS.find(x=>x.name===cs.name)||{id:cs.id,name:cs.name,net:cs.net,addr:cs.id,path:cs.dist,text:'\u2014'}; this.openConvo(th); },specs:[{k:'Node ID',v:cs.id},{k:'Hardware',v:cs.hw},{k:'Distance',v:cs.dist},{k:'SNR',v:cs.snr},{k:'Battery',v:cs.batt!=null?cs.batt+'%':'\u2014'},{k:'Last heard',v:cs.last}]};
+
+    // settings
+    const groupsDef=[{title:'RADIO',keys:['region','preset','tx']},{title:'CONNECTIVITY',keys:['wifi','gps']},{title:'DISPLAY',keys:['bright','dark','timeout']},{title:'POWER',keys:['save']},{title:'DEVICE',keys:['system']}];
+    const rows=this.settingRows(); const byKey={}; rows.forEach(r=>byKey[r.key]=r);
+    let gi=2;
+    const settingGroups=groupsDef.map(g=>({title:g.title,rows:g.keys.map(k=>{ const r=byKey[k]; const idx=gi++; const e=fx(idx); const on=(r.kind==='toggle'&&r.value); return {i:idx,bg:e.bg,ring:e.ring,icon:r.icon,label:r.label,run:()=>this.settingAction(r),isToggle:r.kind==='toggle',isValue:r.kind==='value',isNav:r.kind==='nav',isSlider:r.kind==='slider',value:r.kind==='slider'?r.value+'%':r.value,track:on?'oklch(0.66 0.12 165)':'#2a2f37',knob:on?'flex-end':'flex-start'}; })}));
+    const mtOn=s.netMt, mcOn=s.netMc;
+    const both=mtOn&&mcOn;
+    const airtimeLabel=both?'Split 50 / 50':mtOn?'Meshtastic 100%':mcOn?'MeshCore 100%':'Idle';
+    const mtSlice=mtOn?(both?'50%':'100%'):'0%';
+    const mcSlice=mcOn?(both?'50%':'100%'):'0%';
+    const airtimeNote=both?'Both radios share airtime. Disable one to give the other full throughput and lower latency.':(mtOn||mcOn)?'One network disabled \u2014 the active radio now has full airtime: faster delivery, lower latency.':'Both networks disabled. Enable one to start receiving.';
+    const r0=fx(0), r1=fx(1);
+
+    const previews=[{variant:'grid',title:'Grid',desc:'Classic icon grid \u00b7 trackball roams cell to cell'},{variant:'list',title:'List',desc:'Dense rows with status \u00b7 best for fast scrolling'},{variant:'carousel',title:'Carousel',desc:'One focused app \u00b7 spins left/right'}];
+
+    const sg=this.seg(s.launcher==='grid'), sl=this.seg(s.launcher==='list'), sc=this.seg(s.launcher==='carousel');
+
+    return {
+      apps:APPS, launcher:s.launcher, focus:f,
+      onHeroOpen:(a)=>this.openApp(a.id), onHeroFocus:(i)=>this.setState({focus:i}),
+      back:()=>this.back(), unlock:()=>this.unlock(),
+      tbDown:(e)=>this.tbDown(e), tbMove:(e)=>this.tbMove(e), tbUp:()=>this.tbUp(),
+      scrollRef:(el)=>this.setScroll(el),
+      kbRows:KB,
+      isLock:s.view==='lock', isHome:s.view==='home', isMessages:s.view==='messages', isConvo:s.view==='convo',
+      isMeshtastic:s.view==='meshtastic', isMeshcore:s.view==='meshcore', isAppStore:s.view==='appstore',
+      isContacts:s.view==='contacts', isContactDetail:s.view==='contact', isSettings:s.view==='settings',
+      isSystem:s.view==='system', isTerminal:s.view==='terminal', isFiles:s.view==='files',
+      // messages
+      isDmsTab:s.msgTab==='dms', isChannelsTab:s.msgTab==='channels',
+      dmsTabColor:s.msgTab==='dms'?'#fff':'#7c838c', dmsTabBorder:s.msgTab==='dms'?'oklch(0.82 0.12 165)':'transparent',
+      chTabColor:s.msgTab==='channels'?'#fff':'#7c838c', chTabBorder:s.msgTab==='channels'?'oklch(0.82 0.12 165)':'transparent',
+      tabDms:()=>this.setMsgTab('dms'), tabChannels:()=>this.setMsgTab('channels'),
+      filterAll:()=>this.setFilter('all'), filterMt:()=>this.setFilter('meshtastic'), filterMc:()=>this.setFilter('meshcore'),
+      fAllColor:s.msgFilter==='all'?'#06140f':'#aab0b9', fAllBg:s.msgFilter==='all'?'#cfd4da':'rgba(255,255,255,0.05)', fAllRing:'none',
+      fMtColor:s.msgFilter==='meshtastic'?'#06181f':'#aab0b9', fMtBg:s.msgFilter==='meshtastic'?CYAN:'rgba(255,255,255,0.05)', fMtRing:'none',
+      fMcColor:s.msgFilter==='meshcore'?'#1c1407':'#aab0b9', fMcBg:s.msgFilter==='meshcore'?AMBER:'rgba(255,255,255,0.05)', fMcRing:'none',
+      compose:()=>this.compose(), msgRows, channelRows, netDisabledNote,
+      convo, convoMsgs, draft:s.draft, onDraft:(e)=>this.onDraft(e), sendMsg:()=>this.sendMsg(),
+      // meshtastic
+      mtStatusDot:mtOn?'oklch(0.8 0.12 145)':'#5a616a',
+      mtNodesTab:s.mtTab==='nodes', mtChannelsTab:s.mtTab==='channels',
+      mtNodesColor:s.mtTab==='nodes'?'#fff':'#7c838c', mtNodesBorder:s.mtTab==='nodes'?CYAN:'transparent',
+      mtChColor:s.mtTab==='channels'?'#fff':'#7c838c', mtChBorder:s.mtTab==='channels'?CYAN:'transparent',
+      mtTabNodes:()=>this.setState({mtTab:'nodes',focus:0}), mtTabChannels:()=>this.setState({mtTab:'channels',focus:0}),
+      mtNodeRows, mtChannelRows,
+      // meshcore
+      mcStatusDot:mcOn?'oklch(0.8 0.12 145)':'#5a616a',
+      mcContactsColor:s.mcTab==='contacts'?'#fff':'#7c838c', mcContactsBorder:s.mcTab==='contacts'?AMBER:'transparent',
+      mcRoomsColor:s.mcTab==='rooms'?'#fff':'#7c838c', mcRoomsBorder:s.mcTab==='rooms'?AMBER:'transparent',
+      mcTabContacts:()=>this.setState({mcTab:'contacts',focus:0}), mcTabRooms:()=>this.setState({mcTab:'rooms',focus:0}),
+      mcRows,
+      storeRows, contactRows, detail,
+      // settings
+      settingGroups, airtimeLabel, mtSlice, mcSlice, airtimeNote,
+      row0bg:r0.bg, row0ring:r0.ring, row1bg:r1.bg, row1ring:r1.ring,
+      mtSubtitle:mtOn?'Node JESS \u00b7 US \u00b7 LongFast':'Disabled \u00b7 history kept',
+      mcSubtitle:mcOn?'Companion \u00b7 5 contacts':'Disabled \u00b7 history kept',
+      toggleMt:()=>this.toggleNet('meshtastic'), toggleMc:()=>this.toggleNet('meshcore'),
+      mtTrack:mtOn?'oklch(0.62 0.12 205)':'#2a2f37', mtKnob:mtOn?'flex-end':'flex-start',
+      mcTrack:mcOn?'oklch(0.66 0.13 72)':'#2a2f37', mcKnob:mcOn?'flex-end':'flex-start',
+      sysStats:SYS, termLines:TERM, fileRows:FILES.map((x,i)=>{ const e=fx(i); return {...x,i,bg:e.bg,ring:e.ring,run:()=>{},hover:()=>this.setState({focus:i}),icon:x.dir?'folder':'description',iconColor:x.dir?'oklch(0.78 0.11 242)':'#8b939c',weight:x.dir?'600':'400'}; }),
+      // segmented
+      setGrid:()=>this.setState({launcher:'grid',focus:0}), setList:()=>this.setState({launcher:'list',focus:0}), setCarousel:()=>this.setState({launcher:'carousel',focus:0}),
+      segGridBg:sg.bg, segGridColor:sg.color, segListBg:sl.bg, segListColor:sl.color, segCarBg:sc.bg, segCarColor:sc.color,
+      previews,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+/* Lock screen + Home launcher (single iOS-style 4x2 grid per design) */
+#include "../ui.h"
+#include <stdio.h>
+
+/* ===== Lock ===== */
+
+void lz_scr_lock(lv_obj_t *root)
+{
+    lv_obj_set_style_bg_color(root, lv_color_hex(0x0B0E13), 0);
+
+    /* top inset row: networks left, battery right */
+    lv_obj_t *hub = lz_icon(root, LZ_I_HUB, &lz_icons_14, LZ_CYAN);
+    lv_obj_align(hub, LV_ALIGN_TOP_LEFT, 13, 11);
+    lv_obj_t *lan = lz_icon(root, LZ_I_LAN, &lz_icons_14, LZ_AMBER);
+    lv_obj_align(lan, LV_ALIGN_TOP_LEFT, 31, 11);
+    lv_obj_t *nets = lz_text(root, "2 networks", LZ_F_SMALL, lv_color_hex(0x7F868F));
+    lv_obj_align(nets, LV_ALIGN_TOP_LEFT, 50, 14);
+
+    lv_obj_t *pct = lz_text(root, "87%", LZ_F_SMALL, lv_color_hex(0xAEB6BF));
+    lv_obj_align(pct, LV_ALIGN_TOP_RIGHT, -36, 14);
+    lv_obj_t *batt = lz_box(root);
+    lv_obj_set_size(batt, 17, 9);
+    lv_obj_set_style_radius(batt, 2, 0);
+    lv_obj_set_style_border_width(batt, 1, 0);
+    lv_obj_set_style_border_color(batt, lv_color_hex(0x767D86), 0);
+    lv_obj_align(batt, LV_ALIGN_TOP_RIGHT, -13, 14);
+    lv_obj_t *fill = lz_box(batt);
+    lv_obj_set_size(fill, 11, 5);
+    lv_obj_set_style_bg_color(fill, LZ_GREEN_BRIGHT, 0);
+    lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
+    lv_obj_align(fill, LV_ALIGN_LEFT_MID, 1, 0);
+
+    /* clock + date */
+    lv_obj_t *clock = lz_text(root, "14:23", LZ_F_CLOCK, LZ_TEXT);
+    lv_obj_align(clock, LV_ALIGN_CENTER, 0, -38);
+    lv_obj_t *date = lz_text(root, "Thursday, June 12", LZ_F_BODY, LZ_TEXT_VALUE);
+    lv_obj_align(date, LV_ALIGN_CENTER, 0, -4);
+
+    /* unlock pill */
+    lv_obj_t *pill = lz_box(root);
+    lv_obj_set_size(pill, LV_SIZE_CONTENT, 28);
+    lv_obj_set_style_radius(pill, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(pill, LZ_CHIP_BG, 0);
+    lv_obj_set_style_bg_opa(pill, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(pill, 1, 0);
+    lv_obj_set_style_border_color(pill, lv_color_hex(0x262B33), 0);
+    lv_obj_set_style_pad_hor(pill, 14, 0);
+    lv_obj_set_flex_flow(pill, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(pill, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(pill, 7, 0);
+    lz_icon(pill, LZ_I_LOCK, &lz_icons_14, LZ_MINT);
+    lz_text(pill, "Click trackball or press Enter", LZ_F_SMALL, lv_color_hex(0xCFD4DA));
+    lv_obj_align(pill, LV_ALIGN_CENTER, 0, 36);
+
+    lv_obj_t *foot = lz_text(root, "LimitlezzOS  1.0", LZ_F_SMALL, lv_color_hex(0x5A616A));
+    lv_obj_align(foot, LV_ALIGN_BOTTOM_MID, 0, -10);
+
+    lz_nav_set(1, 1, NULL);  /* Enter unlocks (handled in engine) */
+}
+
+/* ===== Home ===== */
+
+static void home_activate(int idx)
+{
+    static const lz_view_t views[8] = {
+        LZ_V_MESSAGES, LZ_V_MESHTASTIC, LZ_V_MESHCORE, LZ_V_CONTACTS,
+        LZ_V_APPSTORE, LZ_V_TERMINAL, LZ_V_FILES, LZ_V_SETTINGS,
+    };
+    if(idx >= 0 && idx < 8) lz_go(views[idx]);
+}
+
+void lz_scr_home(lv_obj_t *root)
+{
+    lz_status_bar(root);
+
+    /* 4-column grid: padding 11px 12px, cell 71px + 4px gap, row gap 9 */
+    for(int i = 0; i < 8; i++) {
+        const lz_app_t *a = &LZ_APPS[i];
+        bool foc = (i == S.focus);
+        int col = i % 4, row = i / 4;
+        int cell_x = 12 + col * 75;
+        int cell_y = LZ_STATUSBAR_H + 11 + row * (46 + 10 + 4 + 9);
+
+        lv_obj_t *tile = lz_box(root);
+        lv_obj_set_size(tile, 46, 46);
+        lv_obj_set_pos(tile, cell_x + (71 - 46) / 2, cell_y);
+        lv_obj_set_style_radius(tile, LZ_RADIUS_TILE, 0);
+        lv_obj_set_style_bg_color(tile, lz_tile_color(a->hue), 0);
+        lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
+        if(foc) {
+            lv_obj_set_style_outline_width(tile, LZ_FOCUS_RING_W, 0);
+            lv_obj_set_style_outline_color(tile, LZ_FOCUS, 0);
+            lv_obj_set_style_outline_pad(tile, 1, 0);
+        }
+        lv_obj_t *ic = lz_icon(tile, a->icon, &lz_icons_24, lv_color_white());
+        lv_obj_center(ic);
+
+        lv_obj_t *lbl = lz_text(root, a->name, LZ_F_SMALL,
+                                foc ? LZ_TEXT_BRIGHT : LZ_TEXT_DIMLBL);
+        lv_obj_update_layout(lbl);
+        lv_obj_set_pos(lbl, cell_x + (71 - lv_obj_get_width(lbl)) / 2, cell_y + 46 + 4);
+
+        lz_nav_track(tile, i);
+    }
+
+    lz_nav_set(4, 8, home_activate);
+}

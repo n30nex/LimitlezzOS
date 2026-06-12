@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="ms-rounded.css" rel="stylesheet">
+<style>
+  *::-webkit-scrollbar{ width:0; height:0; display:none }
+  @keyframes lzBlink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+</style>
+</helmet>
+<div style="width:320px;height:240px;position:relative;overflow:hidden;background:#0c0e12;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#eef1f4;-webkit-font-smoothing:antialiased">
+
+  <!-- ===== STATUS BAR ===== -->
+  <div style="height:22px;display:flex;align-items:center;justify-content:space-between;padding:0 9px;background:#161b22;border-bottom:1px solid #0a0d11;position:relative;z-index:5">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-family:'Material Symbols Rounded';font-variation-settings:'FILL' 1;font-size:14px;color:#5fe3b3;line-height:1">hub</span>
+      <span style="font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#aeb6bf;letter-spacing:0.02em">7 nodes</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:7px">
+      <div style="display:flex;align-items:flex-end;gap:1.5px;height:11px">
+        <div style="width:2.5px;height:4px;background:#5fe3b3;border-radius:1px"></div>
+        <div style="width:2.5px;height:6px;background:#5fe3b3;border-radius:1px"></div>
+        <div style="width:2.5px;height:8px;background:#5fe3b3;border-radius:1px"></div>
+        <div style="width:2.5px;height:11px;background:rgba(255,255,255,0.22);border-radius:1px"></div>
+      </div>
+      <span style="font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#cdd3da;letter-spacing:0.01em">14:23</span>
+      <div style="display:flex;align-items:center;gap:3px">
+        <div style="width:18px;height:9px;border:1.3px solid #767d86;border-radius:2.5px;position:relative;padding:1px;display:flex;align-items:center">
+          <div style="height:100%;width:84%;background:#5fe3b3;border-radius:1px"></div>
+          <div style="position:absolute;right:-3px;top:2.5px;width:2px;height:4px;background:#767d86;border-radius:0 1px 1px 0"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== GRID ===== -->
+  <sc-if value="{{ isGrid }}" hint-placeholder-val="{{ true }}">
+    <div style="padding:11px 12px 0;display:grid;grid-template-columns:repeat(4,1fr);row-gap:9px;column-gap:4px">
+      <sc-for list="{{ grid }}" as="app" hint-placeholder-count="8">
+        <button onClick="{{ app.openSelf }}" onMouseEnter="{{ app.focusSelf }}" style="appearance:none;border:0;background:transparent;cursor:pointer;padding:0;display:flex;flex-direction:column;align-items:center;gap:4px">
+          <div style="position:relative;width:46px;height:46px;border-radius:13px;background:{{ app.tileBg }};box-shadow:{{ app.ring }};transform:{{ app.tform }};transition:box-shadow .14s ease,transform .14s ease;overflow:hidden">
+            
+            
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+              <span style="font-family:'Material Symbols Rounded';font-variation-settings:'FILL' 1;font-size:25px;color:#fff;line-height:1">{{ app.icon }}</span>
+            </div>
+          </div>
+          <div style="font-size:10px;font-weight:500;color:{{ app.labelColor }};letter-spacing:0.01em;white-space:nowrap">{{ app.name }}</div>
+        </button>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <!-- ===== LIST ===== -->
+  <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+    <div ref="{{ scrollRef }}" style="height:218px;overflow-y:auto;padding:6px 8px 10px">
+      <sc-for list="{{ list }}" as="app" hint-placeholder-count="7">
+        <button onClick="{{ app.openSelf }}" onMouseEnter="{{ app.focusSelf }}" data-fi="{{ app.i }}" style="appearance:none;border:0;cursor:pointer;width:100%;display:flex;align-items:center;gap:11px;padding:7px 9px;margin-bottom:3px;border-radius:11px;background:{{ app.rowBg }};box-shadow:{{ app.rowRing }};transition:background .1s,box-shadow .1s;text-align:left">
+          <div style="position:relative;width:34px;height:34px;flex:none;border-radius:9px;background:{{ app.tileBg }};overflow:hidden">
+            
+            
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'FILL' 1;font-size:18px;color:#fff;line-height:1">{{ app.icon }}</span></div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12.5px;font-weight:600;color:#eef1f4;letter-spacing:-0.01em">{{ app.name }}</div>
+            <div style="font-size:9.5px;color:#828a93;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ app.sub }}</div>
+          </div>
+          <span style="font-family:'Material Symbols Rounded';font-size:18px;color:{{ app.chevColor }}">chevron_right</span>
+        </button>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <!-- ===== CAROUSEL ===== -->
+  <sc-if value="{{ isCarousel }}" hint-placeholder-val="{{ true }}">
+    <div style="height:218px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;overflow:hidden">
+      <div style="width:100%;height:78px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:12px;left:0;display:flex;align-items:flex-start;transform:translateX({{ carouselOffset }}px);transition:transform .4s cubic-bezier(.2,.85,.25,1)">
+          <sc-for list="{{ carousel }}" as="it" hint-placeholder-count="6">
+            <button onClick="{{ it.onTap }}" style="appearance:none;border:0;background:transparent;cursor:pointer;width:84px;display:flex;justify-content:center;padding:0">
+              <div style="position:relative;width:48px;height:48px;border-radius:14px;background:{{ it.tileBg }};transform:{{ it.scale }};opacity:{{ it.op }};transition:transform .4s cubic-bezier(.2,.85,.25,1),opacity .4s,box-shadow .2s;box-shadow:{{ it.ring }};overflow:hidden">
+                
+                
+                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-variation-settings:'FILL' 1;font-size:25px;color:#fff;line-height:1">{{ it.icon }}</span></div>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:16px;font-weight:600;letter-spacing:-0.01em">{{ activeApp.name }}</div>
+        <div style="font-size:10px;color:#8b939c;margin-top:3px">{{ activeApp.sub }}</div>
+      </div>
+      <div style="display:flex;gap:5px;align-items:center">
+        <sc-for list="{{ dots }}" as="d" hint-placeholder-count="6">
+          <div style="width:5px;height:5px;border-radius:50%;background:{{ d.dotBg }};transition:background .2s"></div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:320,&quot;height&quot;:240},&quot;apps&quot;:{&quot;editor&quot;:null},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;grid&quot;,&quot;list&quot;,&quot;carousel&quot;],&quot;default&quot;:&quot;grid&quot;},&quot;focus&quot;:{&quot;editor&quot;:null},&quot;onOpen&quot;:{&quot;editor&quot;:null},&quot;onFocus&quot;:{&quot;editor&quot;:null}}">
+const DEFAULT_APPS = [
+  {id:'messages',name:'Messages',icon:'forum',hue:165,sub:'5 chats \u00b7 2 nets'},
+  {id:'meshtastic',name:'Meshtastic',icon:'hub',hue:205,sub:'JESS \u00b7 7 nodes'},
+  {id:'meshcore',name:'MeshCore',icon:'lan',hue:72,sub:'Companion \u00b7 5'},
+  {id:'contacts',name:'Contacts',icon:'group',hue:318,sub:'18 nodes'},
+  {id:'appstore',name:'App Store',icon:'storefront',hue:280,sub:'4 updates'},
+  {id:'terminal',name:'Terminal',icon:'terminal',hue:null,sub:'115200 baud'},
+  {id:'files',name:'Files',icon:'folder',hue:242,sub:'/sdcard'},
+  {id:'settings',name:'Settings',icon:'settings',hue:null,sub:'Networks \u00b7 Radio'},
+];
+function tileBg(hue){ return hue==null ? '#444b56' : `oklch(0.64 0.13 ${hue})`; }
+function glow(hue){ return hue==null ? 'rgba(150,160,175,0.5)' : `oklch(0.74 0.15 ${hue} / 0.6)`; }
+const ACC = 'oklch(0.95 0.02 220)';
+
+class Component extends DCLogic {
+  state = { focus: 0 };
+  componentDidUpdate(){ this.keepVisible(); }
+  keepVisible(){
+    const el = this.refs && this.refs.scrollEl;
+    if(!el) return;
+    const f = this.props.focus !== undefined && this.props.focus !== null ? this.props.focus : this.state.focus;
+    const row = el.querySelector('[data-fi="'+f+'"]');
+    if(!row) return;
+    const rt = row.offsetTop, rb = rt + row.offsetHeight;
+    if(rt < el.scrollTop) el.scrollTop = rt - 6;
+    else if(rb > el.scrollTop + el.clientHeight) el.scrollTop = rb - el.clientHeight + 6;
+  }
+  renderVals(){
+    const apps = this.props.apps ?? DEFAULT_APPS;
+    const variant = this.props.variant ?? 'grid';
+    const controlled = this.props.focus !== undefined && this.props.focus !== null;
+    const focus = controlled ? this.props.focus : this.state.focus;
+    const open = (i)=>{ if(!controlled) this.setState({focus:i}); const f=this.props.onOpen; if(f) f(apps[i], i); };
+    const setF = (i)=>{ const f=this.props.onFocus; if(controlled){ if(f) f(i); } else { this.setState({focus:i}); if(f) f(i);} };
+    const deco = (a,i)=>{
+      const f = i===focus;
+      return { ...a, i,
+        openSelf:()=>open(i), focusSelf:()=>setF(i),
+        tileBg:tileBg(a.hue),
+        ring: f ? `0 0 0 2px ${ACC}` : 'none',
+        tform: f ? 'scale(1.09)' : 'scale(1)',
+        labelColor: f ? '#ffffff' : '#aab0b9',
+        rowBg: f ? '#1c222b' : 'transparent',
+        rowRing: f ? `inset 0 0 0 2px ${ACC}` : 'none',
+        chevColor: f ? ACC : '#5b626c',
+      };
+    };
+    const grid = apps.map(deco);
+    const itemW = 84;
+    const ci = focus < 0 ? 0 : focus;
+    const carouselOffset = 160 - ci*itemW - itemW/2;
+    const carousel = apps.map((a,i)=>{
+      const act = i===ci; const d=Math.abs(i-ci);
+      return { ...a, i, active:act, tileBg:tileBg(a.hue),
+        scale: act?'scale(1.3)':'scale(0.86)',
+        op: act?1:(d===1?0.55:0.3),
+        ring: act?`0 0 0 2px ${ACC}`:'none',
+        onTap: ()=> act?open(i):setF(i) };
+    });
+    const dots = apps.map((a,i)=>({ dotBg: i===ci ? ACC : 'rgba(255,255,255,0.22)' }));
+    return {
+      isGrid: variant==='grid', isList: variant==='list', isCarousel: variant==='carousel',
+      grid, list:grid, carousel, carouselOffset, dots, activeApp: apps[ci],
+      scrollRef: (el)=>{ if(!this.refs) this.refs={}; this.refs.scrollEl = el; },
+    };
+  }
+}
+</script>
+</body>
+</html>

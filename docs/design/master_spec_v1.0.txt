@@ -1,0 +1,721 @@
+
+
+
+
+limitlezzOS
+Master Technical Specification
+
+Version 1.0  —  For Claude Code Handoff
+Target: LilyGO T-Deck  |  ESP32-S3  |  SX1262 LoRa
+
+UI is already built. This document covers everything the backend must implement.
+
+
+
+1. Vision & Design Philosophy
+limitlezzOS is a purpose-built mesh operating environment for the LilyGO T-Deck. Its goal is to make mesh networking accessible to everyone — not just technically proficient users. Think of it as the 'just works' mesh device. The target user heard about mesh networks after a hurricane, or wants to stay in touch on a hiking trail, or is at a festival without cell coverage. They should be on the mesh in under one minute with zero technical knowledge required.
+
+Core Principles — These Are Non-Negotiable
+Mesh for the masses — every decision prioritizes simplicity over power-user features
+Plain language everywhere — no technical jargon in the UI. 'Weak signal' not 'SF12 BW125'. 'Sending slowed — radio cooling down' not 'duty cycle limit reached'. 'No one nearby yet' not 'no nodes in range'
+Ultra-lightweight kernel — the OS shell consumes minimum RAM and flash so the radio stacks and app VM get the headroom they need
+No app touches the kernel — all third-party code runs inside a Lua VM. No native execution, no direct hardware access from apps, ever
+One UI, two meshes — Meshtastic and MeshCore are unified behind a single inbox. The network tag is always visible but never intrusive
+Foreground-only apps — only preloaded system services run in the background. User-installed apps run only when active
+Zero runtime assets for the OS shell — the OS draws everything as primitives and baked font tables. No PNG files, no bitmap loading for the OS itself. Apps may use assets from their SD sandbox
+
+2. Hardware Reference — LilyGO T-Deck
+Component
+Detail
+SoC
+ESP32-S3 dual-core Xtensa LX7 @ 240 MHz
+RAM
+512 KB SRAM + 8 MB PSRAM
+Flash
+16 MB
+Radio
+SX1262 LoRa transceiver — single, half-duplex
+Display
+320×240 ILI9341 TFT
+Input
+Physical QWERTY keyboard + trackball (nav + click)
+Storage
+MicroSD card (SDIO or SPI)
+Connectivity
+WiFi 802.11 b/g/n + Bluetooth 5.0
+Battery
+Li-Po with USB-C charging
+Status LED
+Single RGB-capable LED, GPIO controlled
+Buzzer
+Piezo buzzer pad, PWM driven via ESP32-S3 LEDC peripheral
+Keyboard Backlight
+Single GPIO PWM via LEDC peripheral — separate channel from buzzer
+
+3. Radio Architecture — TDM Dual-Network
+3.1 The Core Constraint
+The SX1262 is a single half-duplex transceiver. Meshtastic and MeshCore cannot use the radio simultaneously. Time-division multiplexing (TDM) shares the radio between both protocol stacks. This is the foundational architectural decision the entire OS is built around.
+
+3.2 RF Parameter Alignment — Critical
+TDM is only efficient if both networks share identical LoRa modem parameters. When frequency, bandwidth, spreading factor, and coding rate all match, switching between networks requires only a sync word register write — no PLL recalibration, sub-millisecond cost. This is what makes TDM practical.
+
+RF Parameter
+TDM Requirement
+Frequency
+MUST match on both networks
+Bandwidth
+MUST match on both networks
+Spreading Factor
+MUST match on both networks
+Coding Rate
+MUST match on both networks
+Sync Word
+DIFFERENT per network — hardware-filters packets at SX1262 level
+Preamble Length
+Recommended match to reduce settling time
+
+3.3 TDM Scheduler
+The scheduler lives in the Radio HAL layer. It is the sole owner of the SX1262. Neither protocol stack accesses hardware directly.
+
+Default slice: 50/50 adaptive — widens toward the network with queued TX or recent RX activity
+Slice length baseline: ~300ms — tune per spreading factor. Higher SF = longer airtime = longer slices
+Slice transitions are IRQ-gated: a detected preamble extends the current slice until RX_DONE fires. Never switch mid-packet
+TX is queued per-network. Arbiter drains queues respecting CSMA and regional duty-cycle limits
+Duty-cycle accounting is SUMMED across both networks. The arbiter enforces the aggregate limit
+Timer fires the intent to switch. IRQ state gates whether the switch actually happens now or after the in-flight packet completes
+
+3.4 Layer Ownership
+Layer
+Responsibility
+Radio HAL
+Owns SX1262 exclusively. TDM scheduler lives here
+Protocol Stacks
+Meshtastic stack + MeshCore stack. See virtual radio interface, not hardware
+Arbiter
+Mediates between stacks and the HAL. Manages duty cycle, queuing, CSMA
+Messaging Service
+Receives parsed packets from the arbiter. Background system service
+App SDK mesh API
+Apps call mesh.send() / mesh.onReceive(). Goes through arbiter. Never reaches HAL
+
+4. Kernel Architecture
+4.1 Philosophy — Ultra-Lightweight
+The kernel is not a general-purpose RTOS. It is a minimal event loop with cooperative task scheduling. FreeRTOS is used underneath only for its queue and timer primitives — not for OS-style task management. Everything that can be cut is cut. The goal is maximum RAM headroom for the Lua VM and dual protocol stacks.
+
+No dynamic memory allocation in the kernel after boot — static allocation wherever possible
+Cooperative scheduling — tasks yield. No preemptive context switching at the kernel layer
+RAM budget enforced at compile time — kernel + both mesh stacks must fit within a defined SRAM ceiling. PSRAM is reserved for Lua VM heap and app assets
+
+4.2 Full Layer Stack
+Layer
+Component
+App Visibility
+App Layer
+Lua VM (sandboxed)
+User apps — foreground only
+API Layer
+limitlezzOS SDK
+Controlled surface apps call into
+System Services
+Messaging, App Store, Launcher, Feedback Mgr
+Preloaded — may run in background
+OS Core
+Event loop, display driver, input, FS
+No app access
+TDM Scheduler
+Radio arbiter + slice manager
+No app access
+Protocol Stacks
+Meshtastic stack + MeshCore stack
+No app access
+Radio HAL
+SX1262 driver
+No app access
+Hardware
+ESP32-S3, SX1262, ILI9341, SD, LED, Buzzer
+Physical layer
+
+4.3 Background Process Policy — Hard Rule
+This is enforced at the OS level, not advisory.
+
+System services only — ALLOWED background:
+Messaging service — both mesh stacks must keep receiving
+App Store service — catalog and download management
+TDM radio scheduler — always running
+Feedback Manager — LED, buzzer, backlight control
+Battery / power monitor
+All user-installed Lua apps — NOT ALLOWED background:
+When a Lua app is backgrounded or user navigates away: app is terminated
+App state is saved to its SD sandbox before termination
+On relaunch: app loads saved state and resumes
+
+4.4 Display Rendering
+The OS shell uses LVGL with aggressive stripping via lv_conf.h. Disable all unused widgets, animation engine, theme system, extra font formats, and image decoders. The OS shell has zero runtime assets — everything is primitives and baked font tables compiled into flash. LVGL is configured once and never loads files for OS chrome rendering.
+
+Strip: animation engine, theme system, PNG/JPEG decoder, unused widgets (calendars, charts, sliders, spinners, on-screen keyboard)
+Keep: display flush pipeline, basic draw primitives, input device abstraction (trackball + keyboard), task handler / tick system
+Display updates use dirty-region rendering — only changed regions are pushed to the ILI9341 over SPI
+Status bar redraws independently from the message list. A new message appends without touching the status bar
+
+5. Onboarding Flow
+First boot must complete in under one minute with zero technical knowledge required. Three screens maximum.
+
+Step
+Content
+Screen 1
+"What should people call you?" — type display name on hardware keyboard. This name is used on both Meshtastic and MeshCore. One name, both networks.
+Screen 2
+"Which networks do you want to use?" — two toggles, both ON by default. Most users leave them both on and tap next without reading.
+Screen 3
+"You're on the mesh." — shows nearby nodes already discovered if any exist. Drops straight into the unified inbox.
+
+No node ID explanation. No frequency selection. No spreading factor. No account creation. No email. No password. Advanced configuration lives deep in settings and is never shown during onboarding.
+
+6. Unified Messaging UI
+6.1 Core Principle
+One inbox. Both mesh networks. The network is always tagged — never hidden, never dominant. The user never wonders where a message came from or which network a reply leaves on.
+
+6.2 Network Tags
+Network
+Visual Tag
+Meshtastic
+Cyan indicator dot / glyph — consistent with LED color
+MeshCore
+Amber indicator dot / glyph — consistent with LED color
+Both disabled
+Gray — offline indicator in status bar
+
+6.3 Screen Hierarchy
+Tab 1 — Direct Messages: merged inbox, network-tagged per conversation
+Tab 2 — Channels / Broadcast: channel traffic separated from DMs. Mesh channels can be noisy — never let them bury direct messages
+Tab 3 — Nodes / Contacts: known nodes per network, signal bars, last seen in plain language ('2 minutes ago' not a Unix timestamp)
+Settings: per-network enable/disable, display name, scheduler slice tuning (advanced, hidden by default)
+
+6.4 Reply Routing — Must Be Unambiguous
+A conversation is bound to the network it arrived on. Hitting send always routes to that network — no silent network selection ever. A contact on both networks appears as two separate entries. The user explicitly chooses which thread to reply in.
+
+6.5 Network Disable Behavior
+Disabling a network stops TDM slicing to that profile — immediately improves the other network's latency and throughput. Surface this benefit in settings: 'Disabling a network gives the other network more radio time'
+Conversations from a disabled network are grayed out, not deleted
+Re-enabling restores full history and resumes TDM slicing
+
+6.6 Status Bar
+Drawn entirely as primitives — no image assets. Left to right:
+Signal bars — 4 rectangles of increasing height. Green = good, yellow = okay, red = weak, gray = none. If both networks active: two stacked mini-bar sets, one cyan, one amber
+Display name — small monospace, always visible
+Battery icon — outline rectangle + fill level rectangle + optional % text if enabled in settings + lightning bolt primitive when charging
+DND glyph — small moon shape drawn as primitive, visible when DND is active
+
+Battery % is OFF by default. User enables in settings. RSSI/SNR values are hidden by default — accessible via Settings > Diagnostic Mode toggle which flips the whole OS into 'show numbers' mode for power users.
+
+7. Lock Screen & Sleep / Wake
+7.1 Lock Screen
+Simple screen to prevent pocket presses. Not a security vault.
+
+Unlock: single trackball click OR screen swipe — one gesture, instant
+Shows: time, date, battery icon, per-network unread count badge ('3 Meshtastic / 1 MeshCore')
+Does NOT show: message content by default
+Message preview: opt-OUT (off by default). User enables in Settings > Notifications. Plain label: 'Show message previews on lock screen'
+One-tap reply: when a notification arrives on lock screen, tapping the badge unlocks and drops directly into that conversation — zero extra navigation
+
+7.2 Device State Stack
+State
+Behavior
+Active
+Screen on, user present. Full brightness. All feedback active
+Lock screen
+Screen on, locked. Clock + badges. Trackball click or swipe to unlock
+Idle
+Screen off, radio active. LED and buzzer handle notification. Trackball or keypress wakes to lock screen
+Radio sleep
+Deep idle. Radio at minimum duty cycle. Only emergency beacon wakes immediately
+
+7.3 Screen Timeout
+Configurable idle timer. Default 30 seconds. Options: 15s / 30s / 1min / 5min / Never. When timer fires: screen dims (500ms fade) → lock screen. Keyboard backlight fades 200ms before display — keyboard goes dark first, feels intentional.
+
+8. Hardware Feedback System
+8.1 Feedback Manager — System Service
+One background system service owns all three hardware feedback outputs: status LED, buzzer, and keyboard backlight. Nothing else in the OS drives these outputs directly. All requests — from system services and from apps with notification permission — go through the Feedback Manager. It resolves conflicts via a priority queue and applies current DND and power state.
+
+Priority
+Event Class
+P1 — Emergency
+Incoming emergency beacon, outbound SOS confirmation
+P2 — System Critical
+Low battery critical, OTA update status
+P3 — System
+Boot complete, charging state, app crash
+P4 — Message
+Meshtastic or MeshCore incoming message
+P5 — App
+SDK notification request from user app
+
+8.2 Status LED
+Event
+LED Color / Pattern
+Meshtastic message
+Cyan — slow pulse (1s on, 2s off). Three rapid pulses on arrival then holds
+MeshCore message
+Amber — slow pulse (1s on, 2s off). Three rapid pulses on arrival then holds
+Both networks unread
+Alternates cyan / amber slowly
+Low battery
+Steady red — no pulse
+Charging
+Steady green — off when full
+OTA update installing
+Fast white pulse — do not interrupt
+Emergency beacon sent
+Rapid red/white alternate for 5 seconds then holds
+Boot complete
+Single long pulse then off
+DND active
+LED OFF — no output regardless of events (except P1/P2)
+
+LED Settings: On (default) / Off / Unread Only. Brightness fixed in v1.
+
+8.3 Buzzer
+Driven by ESP32-S3 LEDC peripheral PWM. Direct frequency and duration control — no tone library needed.
+
+Event
+Pattern
+Meshtastic message
+Two short beeps
+MeshCore message
+One long beep — immediately distinguishable
+Both networks
+Two short then one long
+Low battery warning
+Two slow beeps, repeated every 5 minutes
+Emergency beacon
+Continuous SOS pattern (... --- ...) until dismissed
+Boot complete
+Single soft ascending two-tone
+Unlock
+Single very short click tone
+App crash
+Single low beep
+System alert
+Three descending tones
+
+Buzzer Settings: On (default) / Off. Volume: Low / Medium (default) / High via PWM duty cycle.
+
+8.4 Keyboard Backlight
+Single GPIO PWM via LEDC peripheral — separate channel from buzzer. Hardware fade via LEDC fade function — costs zero CPU cycles.
+
+Mode
+Behavior
+Auto (default)
+On at full brightness on any keypress. 500ms hardware fade to zero after idle timeout. Syncs with screen dim — both fade together
+Always On
+Full brightness regardless of activity
+Always Off
+Never activates. Best for battery life and low-light use cases
+
+On trigger: instant to full — no fade in, feels responsive
+On idle: 500ms hardware PWM fade to zero
+On screen wake: backlight on simultaneously with display — never lags
+On message notification (screen off): keyboard pulses once in sync with LED — secondary physical cue when device is face-down
+Backlight timeout configurable: 5s / 10s (default) / 30s / Never
+
+8.5 Do Not Disturb (DND) Mode
+Silences all hardware feedback. Messages still arrive and are stored. Unread counts still increment. The user is simply not interrupted.
+
+Output / Feature
+DND Behavior
+Status LED
+OFF — except P1 Emergency and P2 System Critical
+Buzzer
+OFF — except P1 Emergency and P2 System Critical
+Keyboard notification
+OFF
+Screen wake on message
+OFF — screen stays off when messages arrive
+Message storage
+UNAFFECTED — all messages received and stored
+Unread count badges
+UNAFFECTED — increment normally
+Lock screen badges
+UNAFFECTED — visible when screen manually woken
+Emergency beacon receive
+UNAFFECTED — always wakes screen and sounds buzzer
+Low battery LED
+UNAFFECTED — bypasses DND
+Critical battery buzzer
+UNAFFECTED — bypasses DND
+
+Activation: dedicated key combo from any screen (e.g. Fn + Q) — one action, instant
+Lock screen: long press trackball toggles DND without full unlock
+Status bar: small moon glyph (drawn as primitive) when DND active
+Plain label in settings: 'Do Not Disturb' — not 'silent mode', not just a moon icon
+
+8.6 Power Interaction
+Battery State
+Feedback Behavior
+Normal
+All feedback at configured settings
+Low battery (20%)
+Buzzer volume forced to Low. LED pulse interval slows
+Critical (10%)
+Buzzer fires once for alert then silent. LED steady red only. Keyboard backlight forced Always Off
+Charging
+LED steady green. All other feedback resumes normal
+DND + Low battery
+Low battery LED and critical buzzer still fire — safety over silence
+
+8.7 Full Device State Matrix
+Device State
+LED
+Buzzer
+Keyboard Backlight
+Active — screen on
+Per event pattern
+Per event pattern
+Full brightness auto
+Lock screen
+Per event pattern
+Per setting
+Full brightness auto
+Idle — screen off
+Slow pulse on message
+One buzz on message
+One pulse on message
+DND active
+Off (except P1/P2)
+Off (except P1/P2)
+Off
+Low battery
+Steady red added
+Volume forced Low
+Forced off
+Critical battery
+Steady red only
+One alert then silent
+Forced off
+Charging
+Steady green
+Silent
+Normal mode
+OTA updating
+Fast white pulse
+Silent
+Forced off
+Emergency beacon active
+Rapid — bypasses all rules
+SOS — bypasses all rules
+Normal mode
+
+9. App Platform — Lua Sandbox
+9.1 Runtime
+Third-party apps run as Lua 5.4 scripts inside an embedded VM. The VM is the privilege boundary. Apps cannot express native hardware operations because the VM does not expose them. This is the iOS-style isolation model — enforced structurally, not just by policy.
+
+Lua 5.4 — small footprint, designed for embedding, well-suited to ESP32-S3 PSRAM heap
+Per-app memory cap — enforced via Lua allocator hook. App exceeding limit is killed cleanly
+Instruction-count watchdog — hook fires every N instructions, yields to OS event loop, kills app if it has not yielded within timeout window. A spinning app cannot starve the radio scheduler
+All crashes caught via pcall — a faulting script throws to the launcher, never to the OS. App crash = launcher shows error message, returns to home screen. Radio keeps running
+Foreground-only — app is terminated when user navigates away. State saved to SD sandbox before termination. Restored on relaunch
+
+9.2 App Package Format
+Each app is a folder on the SD card: /apps/<appname>/
+
+File / Folder
+Description
+manifest.json
+Required. Name, version, author, description, entry point, icon path, api_version, permissions array
+main.lua
+Required. Entry point script
+icon.bmp
+Optional. 32x32 BMP for launcher grid
+assets/
+Optional. Images, data files. Read-only from app perspective
+data/
+App sandbox. Read/write. Created by OS on first launch. This is the ONLY directory an app can write to
+
+9.3 manifest.json Example
+{
+  "name": "MyApp",
+  "version": "1.0.0",
+  "author": "Developer Name",
+  "description": "Short plain-language description",
+  "entry": "main.lua",
+  "icon": "icon.bmp",
+  "api_version": "0.1",
+  "permissions": ["display", "input", "storage"]
+}
+
+9.4 Permission Namespaces
+Permissions declared in the manifest gate which API namespaces are injected into the app's Lua environment. Undeclared namespaces do not exist in the app's world — not denied, simply absent. There is no API call that reaches the kernel, the radio HAL, or other apps.
+
+Permission
+Capability
+Typical Use
+display
+Draw to screen, read screen dimensions
+All apps
+input
+Read keyboard and trackball events
+All apps
+storage
+Read/write within /apps/<appname>/data/ ONLY
+Most apps
+mesh_read
+Receive incoming messages via arbiter (read-only, filtered)
+Messaging integrations
+mesh_send
+Send a message via arbiter (rate-limited by OS)
+Messaging integrations
+system_time
+Read current time and uptime
+Most apps
+battery
+Read battery level
+Optional
+notifications
+Request Feedback Manager notification (P5 priority only)
+Apps that need alerts
+network_wifi
+Use WiFi — system service apps only
+App Store only
+
+9.5 Security Properties — What an App Can NEVER Do
+Write to arbitrary memory addresses
+Directly access or reconfigure the SX1262
+Change TDM scheduler parameters
+Read mesh identity keys or node credentials
+Access another app's data directory
+Run while backgrounded
+Exceed its memory allocation
+Block the OS event loop indefinitely
+Inject raw LoRa packets — mesh access is mediated by the arbiter only
+Control the LED, buzzer, or keyboard backlight directly — all feedback goes through Feedback Manager
+
+9.6 Filesystem Jail
+Storage API refuses any path containing '..' or an absolute path
+An app that attempts a filesystem escape is killed and flagged in the launcher
+OS config, mesh identity keys, and other apps' data are invisible to apps
+
+10. App Store
+10.1 Two-Layer Architecture
+Layer
+Description
+Local Launcher (Phase 1)
+Scans /apps/ on SD card. Reads manifests. Displays installed apps as icon grid. Launch, delete, view info. Useful immediately — no network needed
+Remote Catalog (Phase 2)
+WiFi-based. Fetches index.json from hosted catalog server. Browse, download, verify, install. Download = fetch zip, verify SHA256 hash, extract to /apps/<appname>/
+
+10.2 Local Launcher Detail
+Scans /apps/ at boot and on manual refresh
+Reads manifest.json from each folder — name, version, icon, description
+Displays icon grid — T-Deck trackball navigates, keyboard shortcuts for speed
+Disabled or corrupted manifests shown with warning glyph — not hidden, not silently skipped
+Launch / Delete / Info actions per app
+
+10.3 Remote Catalog Detail
+Catalog server: static JSON index + file host. GitHub Releases or S3-compatible bucket
+T-Deck fetches index.json, displays catalog, pulls individual app zips on demand
+Each catalog entry: name, author, version, description, size, download URL, SHA256 hash
+Updates shown as version badges on installed app icons
+Download progress shown as plain language: 'Downloading... 45%' not raw bytes
+
+10.4 Developer Experience Goal
+Writing a limitlezzOS app should be accessible to anyone who can write a script — not just ESP32 firmware developers. The Lua API and manifest format should be documented clearly enough that a hobbyist with basic scripting experience can build and publish an app. This is what builds the ecosystem.
+
+11. Over-The-Air OS Updates
+ESP32-S3 supports OTA firmware updates natively via ESP-IDF's esp_ota API. No USB flashing required for updates.
+
+11.1 How It Works
+Flash partition layout: OTA_0 + OTA_1 (two full firmware slots) + OTA data partition (tracks active slot)
+Update process: download new firmware binary over WiFi into inactive partition → verify SHA256 → write OTA data partition to point to new slot → reboot → new firmware runs
+If new firmware fails to boot: OTA data partition rolls back to previous slot automatically
+
+11.2 Integration with App Store
+App Store service checks a firmware update channel alongside the app catalog
+User sees: 'OS update available — version X.X. Download and install?' Plain language, explicit confirmation required
+During OTA install: LED fast white pulse, screen shows progress, keyboard and mesh remain available for receiving messages
+Partition layout must be defined correctly BEFORE the firmware grows large — this is a flash budget decision to make at project start
+
+NOTE: Define the partition table (partitions.csv) before significant firmware development. Two OTA partitions + OTA data + app data must all fit within 16MB flash. Plan this early.
+
+12. Emergency Beacon
+A dedicated distress broadcast feature. Designed for the disaster/outdoor use case that is one of limitlezzOS's core markets.
+
+Activation: dedicated key combo (e.g. hold two specific keys for 3 seconds) — hard enough to trigger accidentally in a pocket, trivial when intentional
+Action: broadcasts a distress message on BOTH networks simultaneously, bypassing normal TDM scheduling — emergency traffic gets immediate airtime
+Feedback: LED rapid red/white alternate + continuous SOS buzzer pattern until dismissed by user
+Incoming emergency beacon from another node: always wakes screen and sounds buzzer even in DND mode — safety overrides silence
+Plain language: 'Send emergency alert to everyone nearby?' confirmation before firing
+
+13. Settings Reference — Complete
+Settings > Profile
+Display Name — shown to other nodes on both networks
+
+Settings > Networks
+Meshtastic — On / Off toggle
+MeshCore — On / Off toggle
+(Advanced, hidden by default) Scheduler slice tuning
+
+Settings > Notifications
+Setting
+Options
+Default
+Notes
+Status LED
+On / Off / Unread Only
+On
+
+Buzzer
+On / Off
+On
+
+Buzzer Volume
+Low / Medium / High
+Medium
+
+Keyboard Backlight
+Auto / Always On / Always Off
+Auto
+
+Backlight Timeout
+5s / 10s / 30s / Never
+10s
+Auto mode only
+Notif. on Keyboard
+On / Off
+On
+Pulse on message when screen off
+Do Not Disturb
+On / Off
+Off
+
+Message Preview
+On / Off
+Off
+Lock screen previews
+
+Settings > Display
+Screen Timeout — 15s / 30s (default) / 1min / 5min / Never
+Battery % — On / Off (default)
+Diagnostic Mode — Off (default) / On — shows RSSI, SNR, node IDs, voltage
+
+Settings > About
+Device name, OS version, build date
+Check for OS update
+Node IDs for each network (technical detail, lives here not in main UI)
+
+14. Build Roadmap
+IMPORTANT STAGING NOTE — READ FIRST
+
+Do not attempt to build everything at once. The correct strategy is to build a fully working, polished OS on Meshtastic first — single network, single stack, no TDM complexity. Get that rock solid. Then add MeshCore as a second network layer on top of a proven foundation. This approach means bugs are always isolated: if something breaks after adding MeshCore, you know exactly where to look. Trying to integrate both stacks simultaneously while building the kernel and UI backend creates a debugging nightmare where nothing can be trusted.
+
+NOTE: Build the BASE OS on Meshtastic only. Add MeshCore support in Stage 2. Do not begin Stage 2 until Stage 1 is stable, tested, and dogfooded on real hardware.
+
+Stage 1 — Base OS (Meshtastic Only)
+Goal: a fully working limitlezzOS device on Meshtastic. Everything the end user experiences should be complete and polished at the end of Stage 1. MeshCore is simply not present yet — the UI shows one network, the radio runs one stack, there is no TDM scheduler yet (single stack owns the radio directly). This is a real, shippable product at the end of Stage 1.
+
+Phase
+Name
+Deliverable
+1.0
+Hardware bringup
+Display, keyboard, trackball, SD, LED, buzzer, keyboard backlight all confirmed working on T-Deck
+1.1
+Partition table
+Define partitions.csv: OTA_0, OTA_1, OTA data, app/config storage. Lock this before firmware grows. Never changes after this point
+1.2
+OS core
+Event loop, cooperative scheduler, memory budget defined and enforced at compile time
+1.3
+Meshtastic stack
+Single stack owns SX1262 directly — no TDM yet. Full Meshtastic TX/RX working. This is the radio foundation everything else sits on
+1.4
+LVGL + display
+Strip lv_conf.h aggressively. Status bar as primitives. Baked font tables in flash. Dirty region updates only
+1.5
+Feedback Manager
+LED, buzzer, keyboard backlight, DND, priority queue, power interaction — working against Meshtastic events only
+1.6
+Messaging UI backend
+Inbox data model wired to Meshtastic stack. Receive, send, thread view, network tag (cyan only), settings
+1.7
+Lock screen and sleep
+Full state machine: active, lock, idle, radio sleep. Trackball unlock. Idle timer. Notification wake. One-tap reply
+1.8
+Onboarding
+Three-screen first boot. Name propagated to Meshtastic. MeshCore toggle visible in UI but grayed out with 'Coming soon' label
+1.9
+Lua VM and SDK
+Runtime, API namespaces, permission injection, memory cap, watchdog, pcall isolation
+1.10
+Local launcher
+SD app scan, manifest parse, icon grid, launch/kill/state-save
+1.11
+App Store catalog
+WiFi catalog fetch, download, SHA256 verify, install working
+1.12
+OTA updates
+Firmware download over WiFi, verify, reboot, rollback working
+1.13
+Stage 1 stabilization
+Dogfood on real hardware. Fix all bugs. Memory profile the full stack. Confirm everything works reliably before touching MeshCore
+
+Stage 2 — MeshCore Integration
+Goal: add MeshCore as a second network on top of a proven Stage 1 foundation. At this point the OS, UI, and app platform are already solid. Stage 2 is purely additive — the existing Meshtastic experience must not regress at all. Every bug introduced in Stage 2 is a MeshCore or TDM bug by definition. This makes debugging fast and clean.
+
+Phase
+Name
+Deliverable
+2.0
+RF parameter alignment
+Verify Meshtastic and MeshCore can share identical BW/SF/CR/frequency. Confirm sync word switching cost on actual hardware. This is the go/no-go gate for TDM — do not proceed without this confirmed
+2.1
+MeshCore stack
+Integrate MeshCore stack alongside Meshtastic. Both stacks present but MeshCore not yet active — Meshtastic still owns radio directly
+2.2
+TDM scheduler + arbiter
+Replace direct radio ownership with the TDM arbiter. Both stacks see a virtual radio interface. Scheduler manages slices. Duty cycle summed across both networks
+2.3
+Messaging UI dual network
+Wire MeshCore into the unified inbox. Amber network tag live. Reply routing confirmed unambiguous. Network disable/enable toggles fully functional
+2.4
+Feedback Manager update
+Add MeshCore event patterns to LED and buzzer. Dual-network notification behavior working
+2.5
+Onboarding update
+MeshCore toggle in onboarding now active. Name propagated to both stacks on first boot
+2.6
+Stage 2 stabilization
+Dogfood dual-network on real hardware. Profile memory and airtime with both stacks running. Confirm Meshtastic experience has not regressed. Fix all TDM edge cases
+
+Stage 3 — Polish and Ecosystem
+Goal: developer tooling, ecosystem growth, and quality of life improvements based on real user feedback from Stages 1 and 2. Do not plan Stage 3 in detail until Stage 2 is complete — real user feedback will determine what matters most here.
+
+Phase
+Name
+Deliverable
+3.0
+Developer tooling
+SDK documentation, manifest validator, app emulator for testing without physical hardware
+3.1
+Emergency beacon
+Key combo SOS broadcast on both networks, LED/buzzer SOS pattern, incoming beacon bypasses DND
+3.2
+Diagnostic mode
+Settings toggle revealing RSSI, SNR, node IDs, voltage, TDM slice stats for power users
+3.3
+Community feedback loop
+Real user feedback from Stages 1 and 2 determines what gets built here
+
+15. Open Questions — Resolve Before Building
+RF alignment: Verify Meshtastic and MeshCore can be configured to identical BW/SF/CR on the same frequency in all target regions before committing to TDM. Check both codebases.
+MeshCore radio abstraction: Confirm MeshCore's codebase exposes the radio cleanly enough to run as a stack instance rather than owning hardware directly.
+Lua footprint: Measure Lua 5.4 base RAM cost on ESP32-S3 against the SRAM budget. If too large, evaluate eLua or a custom minimal interpreter.
+Partition table: Define partitions.csv before significant firmware growth. Two OTA slots + OTA data + app/config storage must fit within 16MB flash.
+App state serialization: Define the exact SDK API for an app to save and restore state. Decide if this is mandatory (enforced by launcher) or advisory.
+Catalog trust model: SHA256 hashes prevent corruption but not malicious apps. Define signing requirement for catalog listing before the store goes public.
+LVGL version: Lock LVGL version in platformio.ini / CMakeLists.txt immediately. LVGL 9 changed the memory model and widget APIs significantly from v8. Do not let this drift.
+
+
+
+
+limitlezzOS Master Spec v1.0  —  Ready for Claude Code Handoff
+UI is already built. Backend implementation begins from this document.
