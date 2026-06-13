@@ -239,11 +239,14 @@ void lz_scr_settings(lv_obj_t *root)
         lv_obj_set_flex_flow(cl, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_row(cl, 1, 0);
         lz_text(cl, is_mt ? "Meshtastic" : "MeshCore", LZ_F_BODY, LZ_TEXT);
-        char mtsub[40];
+        char mtsub[40], mcsub[48];
         snprintf(mtsub, sizeof mtsub, "Node %s - US - LongFast", lz_svc_identity()->short_name);
+        int mcn = lz_svc_node_count(LZ_NET_MC);   /* real heard-node count */
+        if(mcn > 0) snprintf(mcsub, sizeof mcsub, "%d node%s heard", mcn, mcn == 1 ? "" : "s");
+        else        snprintf(mcsub, sizeof mcsub, "Listening for nodes");
         const char *sub = is_mt
             ? (mt ? mtsub : "Disabled - history kept")
-            : (locked ? "Coming soon" : mc ? "Companion - 5 contacts" : "Disabled - history kept");
+            : (mc ? mcsub : "Disabled - history kept");
         lz_text(cl, sub, LZ_F_SMALL, is_mt ? LZ_TEXT_2 : lv_color_hex(0x988E7C));
         if(locked) {
             lv_obj_t *chip = lz_box(row);
