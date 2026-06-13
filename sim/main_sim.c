@@ -396,6 +396,7 @@ int main(int argc, char **argv)
         system("rm -rf lzdata_shots && mkdir -p lzdata_shots");
     }
     lz_svc_init(datadir, true);
+    lz_svc_set_time(1781274180);   /* sim: pretend NTP synced so the clock shows */
     lz_wifi_init();
     lz_ui_init(lv_scr_act());
 

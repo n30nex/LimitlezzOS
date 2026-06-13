@@ -51,6 +51,8 @@
 #define TRACKBALL_RIGHT    2
 #define TRACKBALL_CLICK    0     /* shared with BOOT strapping pin */
 #define TOUCH_INT          16
+#define KB_BL_PIN          46    /* keyboard backlight enable (Meshtastic KB_BL) */
+#define KB_BL_TIMEOUT_MS   8000  /* Auto: stay lit this long after input */
 /* lz_backend_ok / lz_backend_begin_state declared in services/mesh.h */
 
 /* GT911 reports panel-native portrait coordinates (240x320); the display
@@ -110,7 +112,7 @@ public:
 };
 
 static LGFX lcd;
-static lv_color_t draw_buf_mem[LZ_W * 40];
+static lv_color_t draw_buf_mem[LZ_W * 40];   /* internal-RAM fallback */
 
 extern "C" uint32_t lz_tick_ms(void) { return millis(); }
 
@@ -290,9 +292,25 @@ void setup()
 
     lv_init();
     static lv_disp_draw_buf_t draw_buf;
-    lv_disp_draw_buf_init(&draw_buf, draw_buf_mem, NULL, LZ_W * 40);
     static lv_disp_drv_t disp_drv;
     lv_disp_drv_init(&disp_drv);
+    /* Two full-frame buffers in PSRAM + full_refresh = each frame is composed
+     * whole and pushed in one DMA transfer, so you never see a half-updated
+     * frame (the panel has no TE/vsync line, so this is the practical fix for
+     * the tearing). Falls back to a small internal-RAM buffer if PSRAM is out. */
+    size_t fb_px = (size_t)LZ_W * LZ_H;
+    lv_color_t *b1 = (lv_color_t *)heap_caps_malloc(fb_px * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    lv_color_t *b2 = (lv_color_t *)heap_caps_malloc(fb_px * sizeof(lv_color_t), MALLOC_CAP_SPIRAM);
+    if(b1 && b2) {
+        lv_disp_draw_buf_init(&draw_buf, b1, b2, fb_px);
+        disp_drv.full_refresh = 1;
+        Serial.println("[ok] LVGL double full-frame buffers in PSRAM (tear-free)");
+    } else {
+        if(b1) heap_caps_free(b1);
+        if(b2) heap_caps_free(b2);
+        lv_disp_draw_buf_init(&draw_buf, draw_buf_mem, NULL, LZ_W * 40);
+        Serial.println("[--] PSRAM framebuffers unavailable; partial buffer");
+    }
     disp_drv.hor_res = LZ_W;
     disp_drv.ver_res = LZ_H;
     disp_drv.flush_cb = flush_cb;
@@ -371,8 +389,24 @@ void setup()
                   lz_backend_ok() ? "ok" : "FAIL", lz_backend_begin_state());
     Serial.printf("[ok] node id !%08x\n", (unsigned)nodenum);
 
+    pinMode(KB_BL_PIN, OUTPUT);          /* keyboard backlight */
+    digitalWrite(KB_BL_PIN, HIGH);
+
     lz_ui_init(lv_scr_act());            /* applies brightness via backlight_set */
     Serial.println("=== boot complete ===");
+}
+
+static uint32_t g_last_input_ms;     /* for the keyboard-light Auto timeout */
+
+static void kb_backlight_update(void)
+{
+    bool on;
+    switch(S.settings.kb_light) {
+        case 1: on = true; break;                                    /* On      */
+        case 2: on = false; break;                                   /* Off     */
+        default: on = (millis() - g_last_input_ms) < KB_BL_TIMEOUT_MS; break; /* Auto */
+    }
+    digitalWrite(KB_BL_PIN, on ? HIGH : LOW);
 }
 
 static char read_kb(void)
@@ -387,34 +421,59 @@ static char read_kb(void)
 
 void loop()
 {
-    /* trackball roll: 2 pulses per focus step debounces jitter */
+    /* trackball roll: 2 pulses per focus step debounces jitter; a strong left
+     * flick (many pulses at once) is a deliberate back gesture */
     static const int STEP = 2;
-    if(tb_up >= STEP)    { tb_up = 0;    lz_ui_key(LZ_K_UP, 0); }
-    if(tb_down >= STEP)  { tb_down = 0;  lz_ui_key(LZ_K_DOWN, 0); }
-    if(tb_left >= STEP)  { tb_left = 0;  lz_ui_key(LZ_K_LEFT, 0); }
-    if(tb_right >= STEP) { tb_right = 0; lz_ui_key(LZ_K_RIGHT, 0); }
+    bool input = false;
+    if(tb_up >= STEP)    { tb_up = 0;    lz_ui_key(LZ_K_UP, 0);    input = true; }
+    if(tb_down >= STEP)  { tb_down = 0;  lz_ui_key(LZ_K_DOWN, 0);  input = true; }
+    if(tb_left >= STEP)  { tb_left = 0;  lz_ui_key(LZ_K_LEFT, 0);  input = true; }
+    if(tb_right >= STEP) { tb_right = 0; lz_ui_key(LZ_K_RIGHT, 0); input = true; }
 
     static bool click_was = false;
     bool click = digitalRead(TRACKBALL_CLICK) == LOW;
-    if(click && !click_was) lz_ui_key(LZ_K_ENTER, 0);
+    if(click && !click_was) { lz_ui_key(LZ_K_ENTER, 0); input = true; }
     click_was = click;
 
     static uint32_t last_kb = 0;
     if(millis() - last_kb > 40) {
         last_kb = millis();
         char c = read_kb();
+        if(c) input = true;
         if(c == '\r' || c == '\n') lz_ui_key(LZ_K_ENTER, 0);
         else if(c == 8 || c == 127) lz_ui_key(LZ_K_DEL, 0);   /* backspace = delete char / back */
         else if(c) lz_ui_key(LZ_K_CHAR, c);
     }
+    if(input) g_last_input_ms = millis();
+    kb_backlight_update();
 
     lz_svc_loop();
     static int last_wifi = -1;
     lz_wifi_loop();
     if(lz_wifi_status() != last_wifi) {
-        last_wifi = lz_wifi_status();
+        int now = lz_wifi_status();
+        /* on first WiFi connect, auto-sync the clock from NTP (UTC) */
+        if(now == LZ_WIFI_CONNECTED && last_wifi != LZ_WIFI_CONNECTED && !lz_svc_time_synced()) {
+            configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+            struct tm tmv;
+            if(getLocalTime(&tmv, 4000)) {
+                time_t t = mktime(&tmv);
+                lz_svc_set_time((uint32_t)t);
+                Serial.printf("[ok] time synced via NTP: %04d-%02d-%02d %02d:%02d UTC\n",
+                              tmv.tm_year + 1900, tmv.tm_mon + 1, tmv.tm_mday, tmv.tm_hour, tmv.tm_min);
+            }
+        }
+        last_wifi = now;
         if(S.view == LZ_V_WIFI && !S.wifi_pw_mode) lz_rebuild();
     }
+
+    /* Power saving: drop the CPU to 80 MHz (min for WiFi) when enabled */
+    static int last_save = -1;
+    if((int)S.settings.save != last_save) {
+        last_save = S.settings.save;
+        setCpuFrequencyMhz(S.settings.save ? 80 : 240);
+    }
+
     lz_idle_tick();                      /* sleep-after: dim + lock when idle */
     lv_timer_handler();
     delay(5);

@@ -71,6 +71,7 @@ typedef struct {
         bool wifi, gps, dark, save;
         int bright;                           /* 5..100 */
         int timeout;                          /* cycle index */
+        int kb_light;                         /* 0 Auto, 1 On, 2 Off */
     } settings;
 } lz_state_t;
 

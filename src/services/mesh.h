@@ -75,6 +75,7 @@ void lz_svc_set_dirty_cb(void (*cb)(void));             /* UI refresh request   
 /* ---- nodes ---- */
 int  lz_svc_nodes(const lz_node_rt **out);              /* all heard nodes */
 lz_node_rt *lz_svc_node_by_name(const char *name);
+lz_node_rt *lz_svc_node_by_shortcode(const char *sc);  /* for channel long-press DM */
 void lz_svc_add_contact(lz_node_rt *n);
 bool lz_node_messageable(const lz_node_rt *n);          /* people, not infrastructure */
 int  lz_svc_node_count(lz_net_t net);
@@ -106,6 +107,7 @@ void lz_svc_set_node_num(uint32_t num);                   /* real node id (from 
 void lz_svc_set_time(uint32_t epoch);                     /* a real time source synced us */
 bool lz_svc_time_synced(void);
 const char *lz_fmt_now(char *buf, size_t n);              /* current HH:MM, or "--:--" if unsynced */
+const char *lz_fmt_date(char *buf, size_t n);            /* "Friday, Jun 13", or a hint if unsynced */
 
 /* ---- live system info (real hardware values; the sim uses demo numbers) ---- */
 typedef struct {
@@ -142,6 +144,7 @@ bool lz_backend_send(lz_mt_packet_t *p);
 void lz_backend_stats(lz_radio_stats_t *out);
 bool lz_backend_ok(void);            /* radio init succeeded (diagnostics) */
 int  lz_backend_begin_state(void);   /* RadioLib begin() return code */
+void lz_backend_set_tx_power(int dbm);  /* live TX power change */
 
 /* called by backends on radio events */
 void lz_core_on_text(uint32_t from, uint32_t to, const char *text, int hops_used, float snr);

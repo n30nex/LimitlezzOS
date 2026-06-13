@@ -174,6 +174,7 @@ int lz_store_load_threads(lz_thread_rt *out, int cap)
         t->last_ts = (uint32_t)strtoul(ts, NULL, 10);
         t->unread = atoi(unread);
         t->messageable = atoi(msgable) != 0;
+        t->is_channel = (t->node_num == LZ_BROADCAST);   /* broadcast = channel */
         snprintf(t->path, sizeof t->path, "%s", pathf);
         snprintf(t->name, sizeof t->name, "%s", name);
         snprintf(t->last_text, sizeof t->last_text, "%s", text);

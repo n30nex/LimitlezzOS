@@ -58,3 +58,4 @@ bool lz_backend_send(lz_mt_packet_t *p)
 }
 
 void lz_backend_stats(lz_radio_stats_t *out) { *out = g_stats; }
+void lz_backend_set_tx_power(int dbm) { (void)dbm; }   /* no real radio in the sim */

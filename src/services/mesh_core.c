@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 
 /* store.c */
 void lz_store_init(const char *datadir);
@@ -96,6 +97,15 @@ lz_node_rt *lz_svc_node_by_name(const char *name)
     return NULL;
 }
 
+lz_node_rt *lz_svc_node_by_shortcode(const char *sc)
+{
+    if(!sc || !sc[0]) return NULL;
+    for(int i = 0; i < g_node_count; i++)
+        if(g_nodes[i].num != g_id.num && strcmp(g_nodes[i].shortcode, sc) == 0)
+            return &g_nodes[i];
+    return NULL;
+}
+
 static lz_node_rt *ensure_node(uint32_t num, const char *id, lz_net_t net)
 {
     lz_node_rt *n = find_node(num);
@@ -152,6 +162,15 @@ const char *lz_fmt_now(char *buf, size_t n)
 {
     if(!g_time_synced) { snprintf(buf, n, "--:--"); return buf; }
     return lz_fmt_hm(now_epoch(), buf, n);
+}
+const char *lz_fmt_date(char *buf, size_t n)
+{
+    if(!g_time_synced) { snprintf(buf, n, "Set time in Settings"); return buf; }
+    time_t t = (time_t)now_epoch();
+    struct tm tmv;
+    gmtime_r(&t, &tmv);
+    strftime(buf, n, "%A, %b %e", &tmv);
+    return buf;
 }
 
 /* ---- live system info ---- */
@@ -255,7 +274,12 @@ lz_thread_rt *lz_svc_thread_for_node(lz_node_rt *n)
 lz_thread_rt *lz_svc_channel_thread(void)
 {
     lz_thread_rt *t = find_thread(LZ_BROADCAST);
-    if(t) return t;
+    if(t) {                              /* re-assert channel props (survives reload) */
+        t->is_channel = true;
+        t->messageable = true;
+        if(!t->name[0]) snprintf(t->name, sizeof t->name, "LongFast");
+        return t;
+    }
     if(g_thread_count >= LZ_MAX_THREADS) return NULL;
     t = &g_threads[g_thread_count++];
     memset(t, 0, sizeof *t);

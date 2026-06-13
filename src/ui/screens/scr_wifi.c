@@ -178,7 +178,8 @@ void lz_scr_wifi(lv_obj_t *root)
         lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
 
         if(isconn) lz_text(row, "Connected", LZ_F_SMALL, LZ_GREEN_TXT);
-        if(nets[i].secure) lz_icon(row, LZ_I_LOCK, &lz_icons_14, lv_color_hex(0x868F99));
+        /* lock glyph lives in the 16px filled font, not the 14px set (was tofu) */
+        if(nets[i].secure) lz_icon(row, LZ_I_LOCK, &lz_icons_16f, lv_color_hex(0x868F99));
         signal_bars(row, nets[i].rssi);
         lz_nav_track(row, i + 1);
     }

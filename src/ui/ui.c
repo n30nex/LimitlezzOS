@@ -64,9 +64,11 @@ void lz_ui_init(lv_obj_t *root)
     S.net_mc = LZ_MESHCORE_ENABLED ? true : false;   /* locked off until Stage 2 */
     S.settings.gps = true;
     S.settings.dark = true;
-    S.settings.save = true;
+    S.settings.save = false;
     S.settings.bright = 74;
     S.settings.timeout = 1;   /* 30s */
+    S.settings.tx = 3;        /* Max (22 dBm) — matches the radio's init power */
+    S.settings.kb_light = 0;  /* Auto */
     g_root = root;
     lv_obj_remove_style_all(root);
     lv_obj_set_size(root, LZ_W, LZ_H);
@@ -201,30 +203,48 @@ static void move(lz_key_t dir)
         lz_rebuild();
         return;
     }
-    /* tab switching with left/right on single-column tabbed screens */
+    /* tab switching with left/right on single-column tabbed screens; rolling
+     * left past the first tab goes back (the T-Deck has no dedicated back key) */
     if(dir == LZ_K_LEFT || dir == LZ_K_RIGHT) {
         int d = (dir == LZ_K_RIGHT) ? 1 : -1;
         if(S.view == LZ_V_MESSAGES) {
             int t = (int)S.msg_tab + d;
+            if(d < 0 && t < 0) { lz_back(); return; }
             if(t >= 0 && t <= 1 && t != (int)S.msg_tab) { S.msg_tab = (lz_msg_tab_t)t; S.focus = 0; lz_rebuild(); }
             return;
         }
         if(S.view == LZ_V_MESHTASTIC) {
             int t = S.mt_tab + d;
+            if(d < 0 && t < 0) { lz_back(); return; }
             if(t >= 0 && t <= 1 && t != S.mt_tab) { S.mt_tab = t; S.focus = 0; lz_rebuild(); }
             return;
         }
         if(S.view == LZ_V_MESHCORE) {
             int t = S.mc_tab + d;
+            if(d < 0 && t < 0) { lz_back(); return; }
             if(t >= 0 && t <= 1 && t != S.mc_tab) { S.mc_tab = t; S.focus = 0; lz_rebuild(); }
             return;
         }
     }
+    /* roll left with nowhere to move = go back */
+    if(dir == LZ_K_LEFT && S.view != LZ_V_LOCK && S.view != LZ_V_ONBOARD) {
+        bool can_left = (g_count > 0 && g_cols > 1 && (S.focus % g_cols) > 0);
+        if(!can_left) { lz_back(); return; }
+    }
     if(g_count == 0) {
-        /* no focusables: up/down scroll the list (terminal, conversation) */
+        /* no focusables: up/down scroll the list, clamped to the content so the
+         * trackball can't scroll past the top/bottom (touch is clamped by the
+         * elastic flag; this clamps the programmatic trackball scroll) */
         if(g_scroll) {
-            int dy = dir == LZ_K_DOWN ? 60 : dir == LZ_K_UP ? -60 : 0;
-            if(dy) lv_obj_scroll_by(g_scroll, 0, -dy, LV_ANIM_OFF);
+            if(dir == LZ_K_DOWN) {
+                int avail = lv_obj_get_scroll_bottom(g_scroll);
+                int d = avail < 60 ? avail : 60;
+                if(d > 0) lv_obj_scroll_by(g_scroll, 0, -d, LV_ANIM_OFF);
+            } else if(dir == LZ_K_UP) {
+                int avail = lv_obj_get_scroll_top(g_scroll);
+                int d = avail < 60 ? avail : 60;
+                if(d > 0) lv_obj_scroll_by(g_scroll, 0, d, LV_ANIM_OFF);
+            }
         }
         return;
     }
@@ -488,6 +508,7 @@ lv_obj_t *lz_vflex(lv_obj_t *parent)
     /* no rubber-band overscroll past the content (like a real messaging app) */
     lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLL_ELASTIC);
     lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLL_MOMENTUM);
+    lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLL_CHAIN);
     return body;
 }
 
@@ -533,8 +554,11 @@ void lz_status_bar(lv_obj_t *parent)
         lv_obj_align(b, LV_ALIGN_BOTTOM_LEFT, i * 5, 0);
     }
 
-    lz_text(right, "14:23", LZ_F_MONO, lv_color_hex(0xCDD3DA));
+    char clk[8]; lz_fmt_now(clk, sizeof clk);   /* real time, or "--:--" if unsynced */
+    lz_text(right, clk, LZ_F_MONO, lv_color_hex(0xCDD3DA));
 
+    /* battery from real sysinfo: outline + fill scaled to %, or a USB mark */
+    lz_sysinfo_t si; lz_svc_sysinfo(&si);
     lv_obj_t *bwrap = lz_box(right);
     lv_obj_set_size(bwrap, 21, 9);
     lv_obj_t *batt = lz_box(bwrap);
@@ -542,9 +566,11 @@ void lz_status_bar(lv_obj_t *parent)
     lv_obj_set_style_radius(batt, 2, 0);
     lv_obj_set_style_border_width(batt, 1, 0);
     lv_obj_set_style_border_color(batt, lv_color_hex(0x767D86), 0);
+    int pct = si.battery_pct < 0 ? 100 : si.battery_pct;
+    lv_color_t bc = si.usb ? mint : (pct <= 15 ? lv_color_hex(0xE0564E) : mint);
     lv_obj_t *fill = lz_box(batt);
-    lv_obj_set_size(fill, 12, 5);
-    lv_obj_set_style_bg_color(fill, mint, 0);
+    lv_obj_set_size(fill, 2 + (14 * pct) / 100, 5);
+    lv_obj_set_style_bg_color(fill, bc, 0);
     lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
     lv_obj_align(fill, LV_ALIGN_LEFT_MID, 1, 0);
     lv_obj_t *nub = lz_box(bwrap);
@@ -552,6 +578,10 @@ void lz_status_bar(lv_obj_t *parent)
     lv_obj_set_style_bg_color(nub, lv_color_hex(0x767D86), 0);
     lv_obj_set_style_bg_opa(nub, LV_OPA_COVER, 0);
     lv_obj_align(nub, LV_ALIGN_RIGHT_MID, 0, 0);
+    if(si.usb) {   /* charging/USB bolt over the battery */
+        lv_obj_t *bolt = lz_icon(bwrap, LZ_I_BOLT, &lz_icons_14, lv_color_hex(0x0B0E12));
+        lv_obj_align(bolt, LV_ALIGN_CENTER, -1, 0);
+    }
 }
 
 /* derive a 4-char Meshtastic short tag from the long name (alnum, uppercased) */

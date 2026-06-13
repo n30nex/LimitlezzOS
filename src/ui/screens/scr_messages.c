@@ -81,6 +81,26 @@ static void tap_filter_mc(void)    { S.msg_filter = LZ_FILT_MC;  S.focus = 0; lz
 static void tap_compose(void)      { lz_go(LZ_V_CONTACTS); }
 static void tap_send(void)         { lz_ui_key(LZ_K_ENTER, 0); }
 
+/* long-press an incoming channel message -> DM that sender. The bubble text is
+ * "SHORT: message"; we recover the sender by short code. */
+static void channel_dm_async(void *p)
+{
+    lz_node_rt *n = (lz_node_rt *)p;
+    if(n && lz_node_messageable(n)) lz_open_convo(lz_svc_thread_for_node(n));
+}
+static void channel_longpress_cb(lv_event_t *e)
+{
+    lv_obj_t *bub = lv_event_get_target(e);
+    lv_obj_t *lbl = lv_obj_get_child(bub, 0);
+    if(!lbl) return;
+    const char *txt = lv_label_get_text(lbl);
+    char sc[8]; int i = 0;
+    while(txt[i] && txt[i] != ':' && txt[i] != ' ' && i < (int)sizeof sc - 1) { sc[i] = txt[i]; i++; }
+    sc[i] = 0;
+    lz_node_rt *n = lz_svc_node_by_shortcode(sc);
+    if(n) lv_async_call(channel_dm_async, n);
+}
+
 void lz_scr_messages(lv_obj_t *root)
 {
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
@@ -356,6 +376,11 @@ void lz_scr_convo(lv_obj_t *root)
         if(tsz.x > maxw) {
             lv_label_set_long_mode(bl, LV_LABEL_LONG_WRAP);
             lv_obj_set_width(bl, maxw);
+        }
+        /* in a channel, long-press an incoming message to DM that person */
+        if(t->is_channel && !self) {
+            lv_obj_add_flag(bub, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_event_cb(bub, channel_longpress_cb, LV_EVENT_LONG_PRESSED, NULL);
         }
 
         char ts[8]; lz_fmt_hm(msgs[i].ts, ts, sizeof ts);

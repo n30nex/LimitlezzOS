@@ -25,24 +25,34 @@ void lz_scr_lock(lv_obj_t *root)
         lv_obj_align(nets, LV_ALIGN_TOP_LEFT, 31, 14);
     }
 
-    lv_obj_t *pct = lz_text(root, "87%", LZ_F_SMALL, lv_color_hex(0xAEB6BF));
-    lv_obj_align(pct, LV_ALIGN_TOP_RIGHT, -36, 14);
+    lz_sysinfo_t si; lz_svc_sysinfo(&si);
+    if(si.battery_pct >= 0) {
+        char pb[8]; snprintf(pb, sizeof pb, "%d%%", si.battery_pct);
+        lv_obj_t *pct = lz_text(root, pb, LZ_F_SMALL, lv_color_hex(0xAEB6BF));
+        lv_obj_align(pct, LV_ALIGN_TOP_RIGHT, -36, 14);
+    } else {
+        lv_obj_t *pct = lz_text(root, "USB", LZ_F_SMALL, lv_color_hex(0xAEB6BF));
+        lv_obj_align(pct, LV_ALIGN_TOP_RIGHT, -36, 14);
+    }
     lv_obj_t *batt = lz_box(root);
     lv_obj_set_size(batt, 17, 9);
     lv_obj_set_style_radius(batt, 2, 0);
     lv_obj_set_style_border_width(batt, 1, 0);
     lv_obj_set_style_border_color(batt, lv_color_hex(0x767D86), 0);
     lv_obj_align(batt, LV_ALIGN_TOP_RIGHT, -13, 14);
+    int lpct = si.battery_pct < 0 ? 100 : si.battery_pct;
     lv_obj_t *fill = lz_box(batt);
-    lv_obj_set_size(fill, 11, 5);
-    lv_obj_set_style_bg_color(fill, LZ_GREEN_BRIGHT, 0);
+    lv_obj_set_size(fill, 1 + (13 * lpct) / 100, 5);
+    lv_obj_set_style_bg_color(fill, (lpct <= 15 && !si.usb) ? lv_color_hex(0xE0564E) : LZ_GREEN_BRIGHT, 0);
     lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
     lv_obj_align(fill, LV_ALIGN_LEFT_MID, 1, 0);
 
-    /* clock + date */
-    lv_obj_t *clock = lz_text(root, "14:23", LZ_F_CLOCK, LZ_TEXT);
+    /* clock + date (real time once synced, otherwise --:-- + a hint) */
+    char clk[8]; lz_fmt_now(clk, sizeof clk);
+    lv_obj_t *clock = lz_text(root, clk, LZ_F_CLOCK, LZ_TEXT);
     lv_obj_align(clock, LV_ALIGN_CENTER, 0, -38);
-    lv_obj_t *date = lz_text(root, "Thursday, June 12", LZ_F_BODY, LZ_TEXT_VALUE);
+    char dbuf[28]; lz_fmt_date(dbuf, sizeof dbuf);
+    lv_obj_t *date = lz_text(root, dbuf, LZ_F_BODY, LZ_TEXT_VALUE);
     lv_obj_align(date, LV_ALIGN_CENTER, 0, -4);
 
     /* unlock pill */
@@ -70,7 +80,7 @@ void lz_scr_lock(lv_obj_t *root)
     lz_text(pill, "Click trackball or press Enter", LZ_F_SMALL, lv_color_hex(0xCFD4DA));
     lv_obj_align(pill, LV_ALIGN_CENTER, 0, 36);
 
-    lv_obj_t *foot = lz_text(root, "LimitlezzOS  1.0", LZ_F_SMALL, lv_color_hex(0x5A616A));
+    lv_obj_t *foot = lz_text(root, "LimitlezzOS  Alpha 0.1", LZ_F_SMALL, lv_color_hex(0x5A616A));
     lv_obj_align(foot, LV_ALIGN_BOTTOM_MID, 0, -10);
 
     lz_nav_set(1, 1, NULL);  /* Enter unlocks (handled in engine) */

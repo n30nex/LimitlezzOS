@@ -257,6 +257,13 @@ void lz_backend_init(void)
 bool lz_backend_ok(void) { return g_ok; }
 int  lz_backend_begin_state(void) { return g_begin_state; }
 
+void lz_backend_set_tx_power(int dbm)
+{
+    if(!g_ok) return;
+    if(dbm < -9) dbm = -9; if(dbm > 22) dbm = 22;   /* SX1262 range */
+    radio.setOutputPower(dbm);
+}
+
 void lz_backend_loop(void)
 {
     if(!g_ok) return;

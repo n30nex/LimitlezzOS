@@ -6,7 +6,9 @@
 static const char *REGIONS[]  = { "US", "EU868", "ANZ", "CN", "JP" };
 static const char *PRESETS[]  = { "Long/Fast", "Long/Slow", "Med/Fast", "Short/Fast" };
 static const char *TXPOW[]    = { "Low", "Medium", "High", "Max" };
+static const int   TXPOW_DBM[] = { 2, 8, 17, 22 };
 static const char *TIMEOUTS[] = { "15s", "30s", "1m", "5m", "Never" };
+static const char *KBLIGHT[]  = { "Auto", "On", "Off" };
 
 enum { ROW_VALUE, ROW_TOGGLE, ROW_SLIDER, ROW_NAV };
 
@@ -17,18 +19,19 @@ typedef struct {
 
 /* focus indices 2..10 map onto this table (this is a dark-only OS — no dark
  * mode toggle; Wi-Fi opens its own setup screen) */
-static const srow_t SROWS[9] = {
+static const srow_t SROWS[10] = {
     { "Region",           LZ_I_PUBLIC,     ROW_VALUE  },  /* f=2  */
     { "Modem preset",     LZ_I_GRAPHIC_EQ, ROW_VALUE  },  /* f=3  */
     { "TX power",         LZ_I_CELL_TOWER, ROW_VALUE  },  /* f=4  */
     { "Wi-Fi",            LZ_I_WIFI,       ROW_NAV    },  /* f=5  */
     { "GPS",              LZ_I_LOCATION,   ROW_TOGGLE },  /* f=6  */
     { "Brightness",       LZ_I_BRIGHTNESS, ROW_SLIDER },  /* f=7  */
-    { "Sleep after",      LZ_I_SCHEDULE,   ROW_VALUE  },  /* f=8  */
-    { "Power saving",     LZ_I_BOLT,       ROW_TOGGLE },  /* f=9  */
-    { "System & battery", LZ_I_MONITORING, ROW_NAV    },  /* f=10 */
+    { "Keyboard light",   LZ_I_BRIGHTNESS, ROW_VALUE  },  /* f=8  */
+    { "Sleep after",      LZ_I_SCHEDULE,   ROW_VALUE  },  /* f=9  */
+    { "Power saving",     LZ_I_BOLT,       ROW_TOGGLE },  /* f=10 */
+    { "System & battery", LZ_I_MONITORING, ROW_NAV    },  /* f=11 */
 };
-#define SETTINGS_FOCUS_COUNT 11   /* 2 network rows + 9 SROWS */
+#define SETTINGS_FOCUS_COUNT 12   /* 2 network rows + 10 SROWS */
 
 static void cycle(int *idx, int n) { *idx = (*idx + 1) % n; }
 
@@ -42,13 +45,14 @@ static void settings_activate(int f)
         case 1: if(!LZ_MESHCORE_ENABLED) return; S.net_mc = !S.net_mc; break;
         case 2: cycle(&S.settings.region, 5); break;
         case 3: cycle(&S.settings.preset, 4); break;
-        case 4: cycle(&S.settings.tx, 4); break;
+        case 4: cycle(&S.settings.tx, 4); lz_backend_set_tx_power(TXPOW_DBM[S.settings.tx]); break;
         case 5: lz_go(LZ_V_WIFI); return;          /* Wi-Fi setup */
         case 6: S.settings.gps = !S.settings.gps; break;
         case 7: return;                            /* slider: left/right adjusts */
-        case 8: cycle(&S.settings.timeout, 5); break;
-        case 9: S.settings.save = !S.settings.save; break;
-        case 10: lz_go(LZ_V_SYSTEM); return;
+        case 8: cycle(&S.settings.kb_light, 3); break;
+        case 9: cycle(&S.settings.timeout, 5); break;
+        case 10: S.settings.save = !S.settings.save; break;
+        case 11: lz_go(LZ_V_SYSTEM); return;
         default: return;
     }
     lz_rebuild();
@@ -205,7 +209,7 @@ void lz_scr_settings(lv_obj_t *root)
     /* --- grouped rows --- */
     static const struct { const char *title; int first, count; } GROUPS[5] = {
         { "RADIO",        2, 3 }, { "CONNECTIVITY", 5, 2 },
-        { "DISPLAY",      7, 2 }, { "POWER",        9, 1 }, { "DEVICE", 10, 1 },
+        { "DISPLAY",      7, 3 }, { "POWER",       10, 1 }, { "DEVICE", 11, 1 },
     };
     char bval[8];
     for(int g = 0; g < 5; g++) {
@@ -240,9 +244,10 @@ void lz_scr_settings(lv_obj_t *root)
                     lv_obj_align(knob, LV_ALIGN_LEFT_MID, (96 * S.settings.bright) / 100 - 5, 0);
                     break;
                 }
-                case 8: value_chevron(row, TIMEOUTS[S.settings.timeout]); break;
-                case 9: lz_toggle(row, S.settings.save, LZ_TOGGLE_ON); break;
-                case 10: value_chevron(row, "87% - 24C"); break;
+                case 8: value_chevron(row, KBLIGHT[S.settings.kb_light]); break;
+                case 9: value_chevron(row, TIMEOUTS[S.settings.timeout]); break;
+                case 10: lz_toggle(row, S.settings.save, LZ_TOGGLE_ON); break;
+                case 11: value_chevron(row, "87% - 24C"); break;
             }
             lz_nav_track(row, f);
         }
@@ -252,7 +257,7 @@ void lz_scr_settings(lv_obj_t *root)
     /* --- ABOUT (static) --- */
     lv_obj_t *about = group_card(body, "ABOUT");
     const char *ks[2] = { "Device", "Firmware" };
-    const char *vs[2] = { "LilyGo T-Deck", "LimitlezzOS 1.0" };
+    const char *vs[2] = { "LilyGo T-Deck", "LimitlezzOS Alpha 0.1" };
     for(int i = 0; i < 2; i++) {
         lv_obj_t *r = lz_box(about);
         lv_obj_set_width(r, lv_pct(100));
@@ -302,16 +307,22 @@ void lz_scr_system(lv_obj_t *root)
     lv_arc_set_rotation(ring, 270);
     lv_arc_set_bg_angles(ring, 0, 360);
     lv_arc_set_range(ring, 0, 100);
-    lv_arc_set_value(ring, 87);
     lv_obj_remove_style(ring, NULL, LV_PART_KNOB);
     lv_obj_clear_flag(ring, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_arc_width(ring, 6, LV_PART_MAIN);
     lv_obj_set_style_arc_color(ring, lv_color_hex(0x20252D), LV_PART_MAIN);
     lv_obj_set_style_arc_width(ring, 6, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(ring, LZ_GREEN_BRIGHT, LV_PART_INDICATOR);
-    lv_obj_t *rp = lz_text(ring, "87%", LZ_F_HEAD, LZ_TEXT);
+
+    /* real values from the platform (sim shows demo numbers) */
+    lz_sysinfo_t si; lz_svc_sysinfo(&si);
+    bool have_batt = si.battery_pct >= 0;
+    lv_arc_set_value(ring, have_batt ? si.battery_pct : 0);
+    char rpb[8]; snprintf(rpb, sizeof rpb, have_batt ? "%d%%" : "USB", si.battery_pct);
+    lv_obj_t *rp = lz_text(ring, rpb, LZ_F_HEAD, LZ_TEXT);
     lv_obj_align(rp, LV_ALIGN_CENTER, 0, -4);
-    lv_obj_t *rv = lz_text(ring, "3.94V", LZ_F_SMALL, lv_color_hex(0x7F868F));
+    char rvb[10]; snprintf(rvb, sizeof rvb, "%.2fV", (double)si.battery_v);
+    lv_obj_t *rv = lz_text(ring, rvb, LZ_F_SMALL, lv_color_hex(0x7F868F));
     lv_obj_align(rv, LV_ALIGN_CENTER, 0, 12);
 
     lv_obj_t *hc = lz_box(hero);
@@ -319,8 +330,9 @@ void lz_scr_system(lv_obj_t *root)
     lv_obj_set_height(hc, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(hc, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(hc, 2, 0);
-    lz_text(hc, "14h 20m left", LZ_F_HEAD, LZ_TEXT);
-    lz_text(hc, "Discharging - -142 mA", LZ_F_SMALL, LZ_TEXT_2);
+    lz_text(hc, si.usb ? "On USB power" : (have_batt ? "On battery" : "Powered"), LZ_F_HEAD, LZ_TEXT);
+    char vline[24]; snprintf(vline, sizeof vline, "%.2f V", (double)si.battery_v);
+    lz_text(hc, vline, LZ_F_SMALL, LZ_TEXT_2);
     lv_obj_t *chip = lz_box(hc);
     lv_obj_set_size(chip, LV_SIZE_CONTENT, 16);
     lv_obj_set_style_radius(chip, LV_RADIUS_CIRCLE, 0);
@@ -330,14 +342,37 @@ void lz_scr_system(lv_obj_t *root)
     lv_obj_set_flex_flow(chip, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(chip, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(chip, 4, 0);
-    lz_dot(chip, 5, LZ_GREEN_BRIGHT);
-    lz_text(chip, "Battery healthy", LZ_F_SMALL, LZ_GREEN_TXT);
+    /* health baseline from resting voltage: a healthy LiPo sits ~3.7-4.2V under
+     * light load; sustained low voltage means it needs service/charging */
+    const char *health; lv_color_t hcol, hdot;
+    if(si.usb)                  { health = "Powered over USB"; hcol = LZ_GREEN_TXT; hdot = LZ_GREEN_BRIGHT; }
+    else if(si.battery_v >= 3.7f){ health = "Battery healthy";  hcol = LZ_GREEN_TXT; hdot = LZ_GREEN_BRIGHT; }
+    else if(si.battery_v >= 3.4f){ health = "Battery OK";       hcol = LZ_GREEN_TXT; hdot = LZ_GREEN_BRIGHT; }
+    else if(si.battery_v >= 3.2f){ health = "Battery low";      hcol = LZ_SNR_MID;   hdot = LZ_SNR_MID; }
+    else                         { health = "Service battery";  hcol = LZ_SNR_BAD;   hdot = LZ_SNR_BAD; }
+    lv_obj_set_style_bg_color(chip, lv_color_hex(0x1A2520), 0);
+    lz_dot(chip, 5, hdot);
+    lz_text(chip, health, LZ_F_SMALL, hcol);
 
-    /* stat bars */
+    /* live stat rows */
+    char cpuv[16], ramv[24], flashv[24], tempv[12], upv[20];
+    snprintf(cpuv, sizeof cpuv, "%d MHz", si.cpu_mhz);
+    snprintf(ramv, sizeof ramv, "%d / %d KB", si.ram_used_kb, si.ram_total_kb);
+    snprintf(flashv, sizeof flashv, "%.1f / %.1f MB", si.flash_used_kb / 1024.0, si.flash_total_kb / 1024.0);
+    snprintf(tempv, sizeof tempv, "%d C", si.temp_c);
+    uint32_t up = si.uptime_s;
+    if(up >= 86400) snprintf(upv, sizeof upv, "%ud %02u:%02u", up/86400, (up%86400)/3600, (up%3600)/60);
+    else            snprintf(upv, sizeof upv, "%02u:%02u:%02u", up/3600, (up%3600)/60, up%60);
+    struct { const char *label, *value; int pct; bool bar; } rows[5] = {
+        { "CPU",           cpuv,   0,  false },
+        { "RAM",           ramv,   si.ram_total_kb ? si.ram_used_kb * 100 / si.ram_total_kb : 0, true },
+        { "Flash storage", flashv, si.flash_total_kb ? si.flash_used_kb * 100 / si.flash_total_kb : 0, true },
+        { "Temperature",   tempv,  si.temp_c > 0 ? (si.temp_c * 100 / 90) : 0, true },
+        { "Uptime",        upv,    0,  false },
+    };
     const lv_color_t bar_colors[5] = { LZ_BAR_CYAN, LZ_BAR_CYAN, LZ_BAR_MINT,
                                        LZ_BAR_GREEN, LZ_BAR_PURPLE };
     for(int i = 0; i < 5; i++) {
-        const lz_sys_stat_t *s = &LZ_SYS_STATS[i];
         lv_obj_t *st = lz_box(body);
         lv_obj_set_width(st, lv_pct(100));
         lv_obj_set_height(st, LV_SIZE_CONTENT);
@@ -348,31 +383,34 @@ void lz_scr_system(lv_obj_t *root)
         lv_obj_set_height(hd, LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(hd, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(hd, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-        lz_text(hd, s->label, LZ_F_SMALL, LZ_TEXT_VALUE);
-        lz_text(hd, s->value, LZ_F_SMALL, LZ_TEXT_STRONG);
-        /* Uptime is open-ended -> no bar; everything else has a 0..100 fill
-         * that tracks its value (Temp is pre-scaled to a 0-90C range) */
-        if(i == 4) continue;
+        lz_text(hd, rows[i].label, LZ_F_SMALL, LZ_TEXT_VALUE);
+        lz_text(hd, rows[i].value, LZ_F_SMALL, LZ_TEXT_STRONG);
+        if(!rows[i].bar) continue;
+        int p = rows[i].pct; if(p < 0) p = 0; if(p > 100) p = 100;
         lv_obj_t *track = lz_box(st);
         lv_obj_set_size(track, lv_pct(100), 5);
         lv_obj_set_style_radius(track, 3, 0);
         lv_obj_set_style_bg_color(track, LZ_INSET_BG, 0);
         lv_obj_set_style_bg_opa(track, LV_OPA_COVER, 0);
         lv_obj_t *fillb = lz_box(track);
-        lv_obj_set_size(fillb, lv_pct(s->pct), 5);
+        lv_obj_set_size(fillb, lv_pct(p), 5);
         lv_obj_set_style_radius(fillb, 3, 0);
         lv_obj_set_style_bg_color(fillb, bar_colors[i], 0);
         lv_obj_set_style_bg_opa(fillb, LV_OPA_COVER, 0);
     }
 
-    /* radio cards */
+    /* radio cards — live TX/RX + airtime */
+    lz_radio_stats_t rs; lz_svc_radio_stats(&rs);
+    char txrx[20], util[12];
+    snprintf(txrx, sizeof txrx, "%u / %u", (unsigned)rs.tx_count, (unsigned)rs.rx_count);
+    snprintf(util, sizeof util, "%.1f%%", (double)rs.util_pct);
     lv_obj_t *cards = lz_box(body);
     lv_obj_set_width(cards, lv_pct(100));
     lv_obj_set_height(cards, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(cards, LV_FLEX_FLOW_ROW);
     lv_obj_set_style_pad_column(cards, 7, 0);
     const char *cl[2] = { "LoRa TX / RX", "Air utilization" };
-    const char *cv[2] = { "412 / 1284", "3.4%" };
+    const char *cv[2] = { txrx, util };
     for(int i = 0; i < 2; i++) {
         lv_obj_t *c = lz_box(cards);
         lv_obj_set_flex_grow(c, 1);
