@@ -20,7 +20,7 @@ extern "C" void lz_backend_set_networks(bool mt, bool mc) __attribute__((weak));
 extern "C" int  lz_backend_tdm_info(char *buf, int n)     __attribute__((weak));
 extern "C" void lz_backend_mc_tune(float freq, float bw, int sf, int cr, int sync) __attribute__((weak));
 extern "C" int  lz_backend_mc_id(char *buf, int n)        __attribute__((weak));
-extern "C" bool lz_backend_mc_advert_now(void)            __attribute__((weak));
+extern "C" bool lz_backend_mc_advert_now(bool flood)      __attribute__((weak));
 extern "C" int  lz_backend_mc_selftest(char *buf, int n)  __attribute__((weak));
 
 static char    g_line[160];
@@ -42,7 +42,7 @@ static void cmd_help(void)
         "  rf                   show radio profile + TDM schedule\n"
         "  rf mc <f> <bw> <sf> <cr> [sync]  tune MeshCore RF (e.g. rf mc 910.525 62.5 7 5)\n"
         "  mc                   show our MeshCore identity (pubkey)\n"
-        "  mc advert            broadcast a MeshCore self-advert now\n"
+        "  mc advert [local]    broadcast a MeshCore self-advert (flood, or zero-hop)\n"
         "  mc test              build+verify our advert (proves nodes will accept it)\n"
         "  nodes                list heard nodes\n"
         "  send <text>          broadcast text on the channel\n"
@@ -137,9 +137,10 @@ static void cmd_rf(char *args)
 
 static void cmd_mc(char *args)
 {
-    if(args && strcmp(args, "advert") == 0) {
-        if(lz_backend_mc_advert_now && lz_backend_mc_advert_now())
-            Serial.println("[ok] MeshCore self-advert sent");
+    if(args && strncmp(args, "advert", 6) == 0) {
+        bool flood = strstr(args, "local") == NULL;   /* "advert local" = zero-hop */
+        if(lz_backend_mc_advert_now && lz_backend_mc_advert_now(flood))
+            Serial.printf("[ok] MeshCore %s advert sent\n", flood ? "flood" : "zero-hop");
         else
             Serial.println("[err] advert not sent (radio off?)");
         return;

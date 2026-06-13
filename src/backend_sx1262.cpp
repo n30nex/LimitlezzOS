@@ -330,8 +330,10 @@ static void mc_identity_init(void)
     g_mc_id_ok = true;
 }
 
-/* assemble a flood ADVERT into `frame`; returns length or -1 */
-static int build_mc_advert(uint8_t *frame, int cap)
+/* assemble an ADVERT into `frame`. flood=true -> ROUTE_TYPE_FLOOD (propagates
+ * mesh-wide via repeaters); flood=false -> ROUTE_TYPE_DIRECT + path_len 0 (zero
+ * hop, neighbors only). Returns length or -1. */
+static int build_mc_advert(uint8_t *frame, int cap, bool flood)
 {
     if(!g_mc_id_ok) return -1;
     const lz_identity_t *id = lz_svc_identity();
@@ -352,10 +354,11 @@ static int build_mc_advert(uint8_t *frame, int cap)
     uint8_t sig[64];
     Ed25519::sign(sig, g_mc_prv, g_mc_pub, msg, ml);
 
-    /* frame: header(FLOOD|ADVERT) path_len=0  payload[pubkey ts sig app] */
+    /* frame: header(route|ADVERT) path_len=0  payload[pubkey ts sig app] */
     int fl = 0;
-    frame[fl++] = (MC_PAYLOAD_ADVERT << MC_TYPE_SHIFT) | MC_ROUTE_FLOOD;  /* 0x11 */
-    frame[fl++] = 0;                              /* path_len = 0 (flood builds it) */
+    uint8_t route = flood ? MC_ROUTE_FLOOD : MC_ROUTE_DIRECT;  /* 0x01 flood / 0x02 zero-hop */
+    frame[fl++] = (MC_PAYLOAD_ADVERT << MC_TYPE_SHIFT) | route;
+    frame[fl++] = 0;                              /* path_len = 0 */
     if(fl + 32 + 4 + 64 + al > cap) return -1;
     memcpy(frame + fl, g_mc_pub, 32); fl += 32;
     memcpy(frame + fl, &ts, 4);       fl += 4;
@@ -365,11 +368,11 @@ static int build_mc_advert(uint8_t *frame, int cap)
 }
 
 /* transmit one advert (must be tuned to the MeshCore profile) */
-static bool broadcast_mc_advert(void)
+static bool broadcast_mc_advert(bool flood)
 {
     if(!g_mc_id_ok || g_active != PROF_MC) return false;
     uint8_t frame[160];
-    int n = build_mc_advert(frame, sizeof frame);
+    int n = build_mc_advert(frame, sizeof frame, flood);
     if(n <= 0) return false;
     return tx_frame(frame, n);
 }
@@ -442,7 +445,7 @@ void lz_backend_loop(void)
         if(g_last_mc_advert == 0 ? (now - g_boot_ms > 6000)
                                  : (now - g_last_mc_advert > 240000)) {
             g_last_mc_advert = now;
-            broadcast_mc_advert();
+            broadcast_mc_advert(true);   /* periodic auto-advert floods for discovery */
         }
     }
 }
@@ -538,7 +541,7 @@ extern "C" int lz_backend_mc_selftest(char *buf, int n)
 {
     if(!g_mc_id_ok) return snprintf(buf, n, "no MeshCore identity");
     uint8_t frame[160];
-    int fl = build_mc_advert(frame, sizeof frame);
+    int fl = build_mc_advert(frame, sizeof frame, true);
     if(fl <= 0) return snprintf(buf, n, "build failed");
 
     mc_pkt_t p;
@@ -558,16 +561,26 @@ extern "C" int lz_backend_mc_selftest(char *buf, int n)
                     fl, mc_type_name(p.payload_type), a.has_name ? a.name : "", ok ? "VALID" : "INVALID");
 }
 
-/* force-send one self-advert now (retunes to MeshCore briefly if needed) */
-extern "C" bool lz_backend_mc_advert_now(void)
+/* force-send one self-advert now (retunes to MeshCore briefly if needed).
+ * flood=true -> mesh-wide; flood=false -> zero-hop (neighbors only). */
+extern "C" bool lz_backend_mc_advert_now(bool flood)
 {
     if(!g_ok || !g_mc_id_ok) return false;
     int prev = g_active;
     if(g_active != PROF_MC) apply_profile(PROF_MC);
-    bool ok = broadcast_mc_advert();
+    bool ok = broadcast_mc_advert(flood);
     g_last_mc_advert = millis();
     if(prev != PROF_MC && !(g_net_mt && g_net_mc)) apply_profile(prev);  /* restore if not round-robin */
     return ok;
+}
+
+/* short MeshCore address ("MC-978bbe5f") for the UI identity card */
+extern "C" void lz_backend_mc_addr(char *buf, int n)
+{
+    if(g_mc_id_ok)
+        snprintf(buf, n, "MC-%02x%02x%02x%02x", g_mc_pub[0], g_mc_pub[1], g_mc_pub[2], g_mc_pub[3]);
+    else
+        snprintf(buf, n, "MeshCore");
 }
 
 /* one-line schedule/diagnostic summary for the serial console */

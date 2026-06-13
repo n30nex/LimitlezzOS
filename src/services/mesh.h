@@ -157,6 +157,8 @@ bool lz_backend_ok(void);            /* radio init succeeded (diagnostics) */
 int  lz_backend_begin_state(void);   /* RadioLib begin() return code */
 void lz_backend_set_tx_power(int dbm);  /* live TX power change */
 void lz_backend_set_networks(bool mt, bool mc);  /* drive the TDM schedule */
+bool lz_backend_mc_advert_now(bool flood);       /* send a MeshCore self-advert (flood/zero-hop) */
+void lz_backend_mc_addr(char *buf, int n);       /* our MeshCore address, e.g. "MC-978bbe5f" */
 
 /* called by backends on radio events */
 void lz_core_on_text(uint32_t from, uint32_t to, const char *text, int hops_used, float snr);

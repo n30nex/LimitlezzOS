@@ -16,6 +16,23 @@ static void open_contact(int idx)
 
 static void open_longfast(int idx) { (void)idx; lz_open_convo(lz_svc_channel_thread()); }
 
+/* MeshCore self-advertise (so other nodes discover us). idx 0 = zero-hop
+ * (neighbors only), idx 1 = flood (mesh-wide); idx 2+ open a heard node. */
+static const char *g_mc_note;   /* transient confirmation under the buttons */
+static void mc_activate(int idx)
+{
+    if(idx == 0 || idx == 1) {
+        bool flood = (idx == 1);
+        bool ok = lz_backend_mc_advert_now(flood);
+        g_mc_note = !ok ? "Advert failed (radio off?)"
+                  : flood ? "Flood advert sent across the mesh"
+                          : "Advert sent to neighbors";
+        lz_rebuild();
+        return;
+    }
+    open_contact(idx - 2);
+}
+
 static lv_obj_t *colored_navbar(lv_obj_t *root, const char *title, lv_color_t bg,
                                 lv_color_t hairline, bool status_on)
 {
@@ -263,7 +280,8 @@ void lz_scr_meshcore(lv_obj_t *root)
     lv_obj_set_style_pad_column(nrow, 5, 0);
     lz_text(nrow, lz_svc_identity()->long_name, LZ_F_BODY, LZ_TEXT);
     role_badge(nrow, "Companion", lv_color_hex(0x9A8F7A));
-    lz_text(colm, "MeshCore - ed25519", LZ_F_SMALL, lv_color_hex(0x988E7C));
+    char mcaddr[24]; lz_backend_mc_addr(mcaddr, sizeof mcaddr);
+    lz_text(colm, mcaddr, LZ_F_SMALL, lv_color_hex(0x988E7C));
 
     lv_obj_t *right = lz_box(id);
     lv_obj_set_size(right, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -301,6 +319,26 @@ void lz_scr_meshcore(lv_obj_t *root)
     lv_obj_set_style_pad_row(body, 3, 0);
     lz_nav_set_scroll(body);
 
+    /* --- self-advertise: announce ourselves so other MeshCore nodes find us --- */
+    {
+        const char *labels[2] = { "Advertise to neighbors", "Flood advert (whole mesh)" };
+        const char *ics[2]    = { LZ_I_HUB, LZ_I_LAN };
+        for(int b = 0; b < 2; b++) {
+            lv_obj_t *btn = lz_row(body, b == S.focus);
+            lv_obj_set_style_radius(btn, 10, 0);
+            lv_obj_set_style_pad_column(btn, 8, 0);
+            lz_icon(btn, ics[b], &lz_icons_16f, LZ_AMBER);
+            lv_obj_t *t = lz_text(btn, labels[b], LZ_F_BODY, LZ_TEXT);
+            lv_obj_set_flex_grow(t, 1);
+            lz_nav_track(btn, b);
+        }
+        if(g_mc_note) {
+            lv_obj_t *note = lz_text(body, g_mc_note, LZ_F_SMALL, LZ_AMBER);
+            lv_obj_set_style_pad_left(note, 4, 0);
+            lv_obj_set_style_pad_bottom(note, 2, 0);
+        }
+    }
+
     const lz_node_rt *nodes;
     int nn = lz_svc_nodes(&nodes);
     vis_count = 0;
@@ -315,7 +353,7 @@ void lz_scr_meshcore(lv_obj_t *root)
     for(int i = 0; i < vis_count; i++) {
         lz_node_rt *n = vis_nodes[i];
         char ago[8]; lz_fmt_ago(n->last_heard, ago, sizeof ago);
-        lv_obj_t *row = lz_row(body, i == S.focus);
+        lv_obj_t *row = lz_row(body, i + 2 == S.focus);   /* focus 0/1 are the advert buttons */
         lv_obj_set_style_radius(row, 10, 0);
         lv_obj_set_style_pad_column(row, 8, 0);
 
@@ -351,7 +389,15 @@ void lz_scr_meshcore(lv_obj_t *root)
 
         bool online = strcmp(ago, "now") == 0 || strchr(ago, 'm') != NULL;
         lz_dot(row, 7, online ? LZ_GREEN : lv_color_hex(0x4A515B));
-        lz_nav_track(row, i);
+        lz_nav_track(row, i + 2);
     }
-    lz_nav_set(1, vis_count, open_contact);
+    if(vis_count == 0) {
+        lv_obj_t *empty = lz_text(body, S.mc_tab == 1
+                                      ? "No MeshCore rooms heard yet."
+                                      : "No MeshCore nodes heard yet — advertise to announce yourself.",
+                                  LZ_F_SMALL, LZ_TEXT_3);
+        lv_obj_set_style_pad_top(empty, 8, 0);
+        lv_obj_set_style_pad_left(empty, 4, 0);
+    }
+    lz_nav_set(1, vis_count + 2, mc_activate);
 }
