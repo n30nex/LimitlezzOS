@@ -159,6 +159,8 @@ static lz_node_rt *find_node(uint32_t num)
     return NULL;
 }
 
+lz_node_rt *lz_svc_node_by_num(uint32_t num) { return find_node(num); }
+
 lz_node_rt *lz_svc_node_by_name(const char *name)
 {
     for(int i = 0; i < g_node_count; i++)

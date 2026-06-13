@@ -76,6 +76,7 @@ void lz_svc_set_dirty_cb(void (*cb)(void));             /* UI refresh request   
 int  lz_svc_nodes(const lz_node_rt **out);              /* all heard nodes */
 lz_node_rt *lz_svc_node_by_name(const char *name);
 lz_node_rt *lz_svc_node_by_shortcode(const char *sc);  /* for channel long-press DM */
+lz_node_rt *lz_svc_node_by_num(uint32_t num);          /* node for a DM thread */
 void lz_svc_add_contact(lz_node_rt *n);
 bool lz_node_messageable(const lz_node_rt *n);          /* people, not infrastructure */
 int  lz_svc_node_count(lz_net_t net);

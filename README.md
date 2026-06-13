@@ -55,8 +55,11 @@ font tables, no images, no gradients, no alpha layering.
 
 ### 🔭 Later
 - **MeshCore**: receive + default Public channel, then a MeshCore companion bridge.
+- **Security**: optional device **password/PIN**, and **encrypt the data files**
+  (messages, identity, keys) when a password is set.
 - **Hardening**: Wi-Fi passwords are stored in plaintext on the SD card
-  (`/limitlezz/wifi.cfg`) — move to NVS or encrypt.
+  (`/limitlezz/wifi.cfg`) — move to NVS or encrypt (covered by the above when a
+  password is set).
 
 ![screens](docs/screens.png)
 

@@ -81,13 +81,15 @@ static void tap_filter_mc(void)    { S.msg_filter = LZ_FILT_MC;  S.focus = 0; lz
 static void tap_compose(void)      { lz_go(LZ_V_CONTACTS); }
 static void tap_send(void)         { lz_ui_key(LZ_K_ENTER, 0); }
 
-/* long-press an incoming channel message -> DM that sender. The bubble text is
- * "SHORT: message"; we recover the sender by short code. */
-static void channel_dm_async(void *p)
+/* open a node's profile (contact detail) — from there you can Message or
+ * Add to contacts. Deferred so we don't navigate inside an LVGL event. */
+static void open_profile_async(void *p)
 {
     lz_node_rt *n = (lz_node_rt *)p;
-    if(n && lz_node_messageable(n)) lz_open_convo(lz_svc_thread_for_node(n));
+    if(n) { S.contact_sel = n; lz_go(LZ_V_CONTACT); lz_rebuild(); }
 }
+/* long-press an incoming channel message -> open the sender's profile. The
+ * bubble text is "SHORT: message"; we recover the sender by short code. */
 static void channel_longpress_cb(lv_event_t *e)
 {
     lv_obj_t *bub = lv_event_get_target(e);
@@ -98,7 +100,13 @@ static void channel_longpress_cb(lv_event_t *e)
     while(txt[i] && txt[i] != ':' && txt[i] != ' ' && i < (int)sizeof sc - 1) { sc[i] = txt[i]; i++; }
     sc[i] = 0;
     lz_node_rt *n = lz_svc_node_by_shortcode(sc);
-    if(n) lv_async_call(channel_dm_async, n);
+    if(n) lv_async_call(open_profile_async, n);
+}
+/* tap the name in a DM's header -> open that contact's profile */
+static void convo_header_cb(lv_event_t *e)
+{
+    lz_node_rt *n = (lz_node_rt *)lv_event_get_user_data(e);
+    if(n) lv_async_call(open_profile_async, n);
 }
 
 void lz_scr_messages(lv_obj_t *root)
@@ -320,6 +328,18 @@ void lz_scr_convo(lv_obj_t *root)
     char pathb[24]; snprintf(pathb, sizeof pathb, "- %s", t->path);
     lz_text(sub, pathb, LZ_F_SMALL, LZ_TEXT_META);
     lv_obj_align(sub, LV_ALIGN_BOTTOM_MID, 0, -1);
+
+    /* DM header is tappable -> the contact's profile (Message / Add contact).
+     * Channels have no single peer, so only wire it for direct threads. */
+    lz_node_rt *peer = (!t->is_channel && t->node_num != LZ_BROADCAST)
+                       ? lz_svc_node_by_num(t->node_num) : NULL;
+    if(peer) {
+        lv_obj_t *hit = lz_box(bar);          /* transparent tap target over the name */
+        lv_obj_set_size(hit, 184, LZ_NAVBAR_H);
+        lv_obj_align(hit, LV_ALIGN_TOP_MID, 0, 0);
+        lv_obj_add_flag(hit, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_add_event_cb(hit, convo_header_cb, LV_EVENT_CLICKED, peer);
+    }
 
     /* thread */
     lv_obj_t *body = lz_vflex(root);
