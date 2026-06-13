@@ -131,6 +131,13 @@ static uint32_t airtime_ms(int payload_len)
 
 static void send_nodeinfo(uint32_t to, bool want_response);   /* fwd decl */
 static void send_routing_ack(uint32_t to, uint32_t req_id);   /* fwd decl */
+static void flush_pending_dm(uint32_t to);                    /* fwd decl */
+
+/* DMs to a node whose key we don't have yet are queued here while we request the
+ * key (retried), then sent for real once it arrives — so a DM never silently
+ * falls back to PSK (which modern nodes ignore). */
+#define LZ_PEND_N 6
+static struct { lz_mt_packet_t pkt; uint32_t req_ms; uint8_t tries; bool used; } g_pend[LZ_PEND_N];
 static volatile bool g_rxlog;     /* serial: log inbound MT packet metadata + decode */
 extern "C" void lz_backend_set_rxlog(bool on) { g_rxlog = on; }
 
@@ -169,7 +176,8 @@ static void parse_user(const uint8_t *b, int len, uint32_t from, float snr)
                               (unsigned)from, longn, shortn, hw, pubkey ? "YES" : "no", len);
     lz_core_on_nodeinfo(from, id[0] ? id : NULL, longn[0] ? longn : NULL,
                         shortn[0] ? shortn : NULL, 0, NULL, snr);
-    if(pubkey) lz_core_on_pubkey(from, pubkey);   /* remember key for PKI DMs */
+    if(pubkey) { lz_core_on_pubkey(from, pubkey);   /* remember key for PKI DMs */
+                 flush_pending_dm(from); }           /* send DMs that were waiting on it */
     (void)hw;
 }
 
@@ -521,6 +529,18 @@ void lz_backend_loop(void)
         else                    handle_rx_mc();
     }
 
+    /* re-request keys for queued DMs every ~4s until they arrive; give up after
+     * ~8 tries so a message to an unreachable node doesn't queue forever */
+    if(g_net_mt && g_active == PROF_MT) {
+        for(int i = 0; i < LZ_PEND_N; i++) {
+            if(!g_pend[i].used) continue;
+            if(now - g_pend[i].req_ms < 4000) continue;
+            if(g_pend[i].tries >= 8) { g_pend[i].used = false; continue; }   /* failed (delivery-status will flag it) */
+            g_pend[i].req_ms = now; g_pend[i].tries++;
+            lz_backend_request_nodeinfo(g_pend[i].pkt.to);
+        }
+    }
+
     /* announce our Meshtastic node info shortly after boot, then every ~5 min —
      * only while actually listening on Meshtastic (tx must use the MT profile) */
     if(g_net_mt && g_active == PROF_MT) {
@@ -575,8 +595,17 @@ bool lz_backend_send(lz_mt_packet_t *p)
     /* DM to a node whose public key we know -> PKI-encrypt (channel byte 0).
      * Otherwise (broadcast/channel, or no key yet) -> legacy PSK channel crypt. */
     uint8_t peer_pub[32];
-    bool pki = p->to != MT_BROADCAST && p->to != p->from &&
-               lz_mtpki_ready() && lz_svc_node_pubkey(p->to, peer_pub);
+    bool is_dm = p->to != MT_BROADCAST && p->to != p->from;
+    bool pki = is_dm && lz_mtpki_ready() && lz_svc_node_pubkey(p->to, peer_pub);
+    /* DM but we don't have the peer's key yet: queue it + request the key
+     * (retried in the loop), then send for real when the key lands */
+    if(is_dm && !pki && lz_mtpki_ready()) {
+        for(int i = 0; i < LZ_PEND_N; i++) if(!g_pend[i].used) {
+            g_pend[i].pkt = *p; g_pend[i].req_ms = millis(); g_pend[i].tries = 1; g_pend[i].used = true; break;
+        }
+        lz_backend_request_nodeinfo(p->to);
+        return true;                                 /* queued (will send on key arrival) */
+    }
     if(pki) {
         uint8_t blob[251];
         int bl = lz_mtpki_encrypt(peer_pub, p->from, p->id, plain, pn, blob, sizeof blob);
@@ -595,6 +624,18 @@ bool lz_backend_send(lz_mt_packet_t *p)
         payload_len = pn;
     }
     return tx_frame(frame, MT_HEADER_LEN + payload_len);
+}
+
+/* a key just arrived for `to` — send any DMs we queued waiting for it */
+static void flush_pending_dm(uint32_t to)
+{
+    for(int i = 0; i < LZ_PEND_N; i++) {
+        if(g_pend[i].used && g_pend[i].pkt.to == to) {
+            lz_mt_packet_t pk = g_pend[i].pkt;
+            g_pend[i].used = false;
+            lz_backend_send(&pk);                    /* we have the key now -> PKI */
+        }
+    }
 }
 
 void lz_backend_stats(lz_radio_stats_t *out)

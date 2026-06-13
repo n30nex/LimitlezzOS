@@ -27,9 +27,9 @@ extern "C" {
 #define LZ_TAIL_MAX     32
 #define LZ_TEXT_MAX     200
 
-/* MeshCore runs as a second RF profile, time-division multiplexed with
- * Meshtastic on the one SX1262 (see lz_backend_set_networks). */
-#define LZ_MESHCORE_ENABLED 1
+/* MeshCore (2nd RF profile, TDM with Meshtastic) is built but not receive-ready,
+ * so it's shown as "Coming soon" / grayed for the Alpha. Flip to 1 to enable. */
+#define LZ_MESHCORE_ENABLED 0
 
 typedef struct {
     uint32_t num;                /* node number (low 32 of MAC on Meshtastic) */

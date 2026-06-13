@@ -92,7 +92,8 @@ static void settings_activate(int f)
 {
     switch(f) {
         case 0: S.net_mt = !S.net_mt; lz_apply_networks(); break;
-        case 1: S.net_mc = !S.net_mc; lz_apply_networks(); break;
+        case 1: if(!LZ_MESHCORE_ENABLED) return;   /* MeshCore locked: "Coming soon" */
+                S.net_mc = !S.net_mc; lz_apply_networks(); break;
         case 2: cycle(&S.settings.tx, 4); lz_backend_set_tx_power(TXPOW_DBM[S.settings.tx]); break;
         case 3: lz_go(LZ_V_WIFI); return;          /* Wi-Fi setup */
         case 4: S.settings.gps = !S.settings.gps; break;
@@ -246,7 +247,7 @@ void lz_scr_settings(lv_obj_t *root)
         else        snprintf(mcsub, sizeof mcsub, "Listening for nodes");
         const char *sub = is_mt
             ? (mt ? mtsub : "Disabled - history kept")
-            : (mc ? mcsub : "Disabled - history kept");
+            : (locked ? "Coming soon" : (mc ? mcsub : "Disabled - history kept"));
         lz_text(cl, sub, LZ_F_SMALL, is_mt ? LZ_TEXT_2 : lv_color_hex(0x988E7C));
         if(locked) {
             lv_obj_t *chip = lz_box(row);

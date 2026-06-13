@@ -288,6 +288,15 @@ void lz_scr_meshcore(lv_obj_t *root)
 
     colored_navbar(root, "MeshCore", LZ_NAV_MC, lv_color_hex(0x2B1D07), S.net_mc);
 
+    if(!LZ_MESHCORE_ENABLED) {                 /* not receive-ready yet — Alpha */
+        lv_obj_t *cs = lz_text(root, "Coming soon", LZ_F_HEAD, amber_lt);
+        lv_obj_align(cs, LV_ALIGN_CENTER, 0, -10);
+        lv_obj_t *sub = lz_text(root, "MeshCore support is in development.", LZ_F_SMALL, LZ_TEXT_3);
+        lv_obj_align(sub, LV_ALIGN_CENTER, 0, 14);
+        lz_nav_set(1, 0, NULL);
+        return;
+    }
+
     lv_obj_t *id = identity_card(root, lv_color_hex(0x1A1710), lv_color_hex(0x241F15));
     lv_obj_t *tile = lz_box(id);
     lv_obj_set_size(tile, 34, 34);

@@ -168,11 +168,19 @@ lz_node_rt *lz_svc_node_by_name(const char *name)
     return NULL;
 }
 
+/* compare shortcodes ignoring trailing spaces (Meshtastic pads short names) */
+static bool sc_eq(const char *a, const char *b)
+{
+    int la = 0, lb = 0;
+    while(a[la]) la++; while(la && a[la - 1] == ' ') la--;
+    while(b[lb]) lb++; while(lb && b[lb - 1] == ' ') lb--;
+    return la == lb && strncmp(a, b, la) == 0;
+}
 lz_node_rt *lz_svc_node_by_shortcode(const char *sc)
 {
     if(!sc || !sc[0]) return NULL;
     for(int i = 0; i < g_node_count; i++)
-        if(g_nodes[i].num != g_id.num && strcmp(g_nodes[i].shortcode, sc) == 0)
+        if(g_nodes[i].num != g_id.num && sc_eq(g_nodes[i].shortcode, sc))
             return &g_nodes[i];
     return NULL;
 }
