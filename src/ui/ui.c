@@ -148,7 +148,10 @@ void lz_nav_track(lv_obj_t *obj, int idx)
 {
     if(idx == S.focus) g_focus_obj = obj;
     lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(obj, tap_item_cb, LV_EVENT_CLICKED, (void *)(intptr_t)idx);
+    /* SHORT_CLICKED (not CLICKED): a tap selects/opens, but a long press is
+     * suppressed here so rows can use LONG_PRESSED for their own action
+     * (e.g. hold a chat to silence it) without also triggering the tap. */
+    lv_obj_add_event_cb(obj, tap_item_cb, LV_EVENT_SHORT_CLICKED, (void *)(intptr_t)idx);
 }
 
 void lz_rebuild(void)
@@ -222,6 +225,18 @@ static void unlock(void)
     S.nav_depth = 0;
     S.view = LZ_V_HOME;
     S.focus = 0;
+    lz_rebuild();
+}
+
+/* manual lock (sym+L shortcut): jump straight to the lock screen from anywhere */
+void lz_lock(void)
+{
+    if(S.view == LZ_V_ONBOARD || S.view == LZ_V_LOCK) return;
+    S.nav_depth = 0;
+    S.view = LZ_V_LOCK;
+    S.focus = 0;
+    S.draft[0] = 0;
+    lz_vlist_reset_scroll();
     lz_rebuild();
 }
 
@@ -380,6 +395,15 @@ void lz_ui_key(lz_key_t k, char c)
     /* tap/key to wake, then tap/key to act: the first input after sleep only
      * lights the screen (so a pocket bump can't unlock or trigger anything) */
     if(was_asleep) return;
+    /* sym+L on the T-Deck keyboard emits '"'; use it as a Lock shortcut — but
+     * not where you're actually typing, so a quote still works in a message,
+     * Wi-Fi password, onboarding name, or terminal command. */
+    if(k == LZ_K_CHAR && c == '"' &&
+       S.view != LZ_V_CONVO && S.view != LZ_V_ONBOARD && S.view != LZ_V_TERMINAL &&
+       !(S.view == LZ_V_WIFI && S.wifi_pw_mode)) {
+        lz_lock();
+        return;
+    }
     if(S.view == LZ_V_ONBOARD) { onboard_key(k, c); return; }
     if(S.view == LZ_V_WIFI && S.wifi_pw_mode) { wifi_pw_key(k, c); return; }
     if(S.view == LZ_V_SETTIME) { lz_settime_key(k, c); return; }

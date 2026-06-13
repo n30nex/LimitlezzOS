@@ -97,6 +97,8 @@ int  lz_svc_node_count(lz_net_t net);
 int  lz_svc_thread_count_all(void);
 lz_thread_rt *lz_svc_top_unread(void);    /* most recent unread (lock-screen notification) */
 int  lz_svc_unread_count(void);           /* number of conversations with unread (muted excluded) */
+int  lz_svc_unread_total(void);           /* total unread messages across chats (muted excluded) */
+void lz_svc_toggle_mute(lz_thread_rt *t); /* silence/unsilence a chat (no notify, no badge) */
 lz_thread_rt *lz_svc_thread_at(int display_idx);        /* newest-first */
 lz_thread_rt *lz_svc_thread_for_node(lz_node_rt *n);    /* find or create */
 lz_thread_rt *lz_svc_channel_thread(void);              /* LongFast broadcast channel */

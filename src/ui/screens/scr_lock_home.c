@@ -15,7 +15,15 @@ static void notif_tap(void) { if(g_notif_t) lz_open_convo(g_notif_t); }
 void lz_scr_lock(lv_obj_t *root)
 {
     lv_obj_set_style_bg_color(root, lv_color_hex(0x0B0E13), 0);
-    lz_on_click(root, lock_tap);
+
+    /* Full-screen "tap to unlock" layer as the BOTTOM child (a fresh object
+     * each rebuild — avoids piling duplicate handlers on the persistent screen
+     * object). Everything below is drawn on top of it, so the notification card
+     * captures its own taps while a tap anywhere else falls through to unlock. */
+    lv_obj_t *unlock_layer = lz_box(root);
+    lv_obj_set_size(unlock_layer, LZ_W, LZ_H);
+    lv_obj_set_pos(unlock_layer, 0, 0);
+    lz_on_click(unlock_layer, lock_tap);
 
     /* top inset row: just the enabled-network icons (left), battery (right) —
      * Meshtastic (cyan hub) and/or MeshCore (amber lan), or nothing if idle */
@@ -198,6 +206,29 @@ void lz_scr_home(lv_obj_t *root)
             lv_obj_t *st = lz_text(soon, "SOON", LZ_F_SMALL, lv_color_hex(0x969EA8));
             lv_obj_center(st);
             lv_obj_align(soon, LV_ALIGN_TOP_RIGHT, 3, -4);
+        }
+
+        /* iPhone-style unread counter badge on the Messages icon (muted chats
+         * excluded): 1-9 as the number, "9+" once there are ten or more */
+        if(strcmp(a->id, "messages") == 0) {
+            int u = lz_svc_unread_total();
+            if(u > 0) {
+                lv_obj_t *bdg = lz_box(tile);
+                lv_obj_set_size(bdg, LV_SIZE_CONTENT, 16);
+                lv_obj_set_style_min_width(bdg, 16, 0);
+                lv_obj_set_style_radius(bdg, LV_RADIUS_CIRCLE, 0);
+                lv_obj_set_style_bg_color(bdg, lv_color_hex(0xFF3B30), 0);
+                lv_obj_set_style_bg_opa(bdg, LV_OPA_COVER, 0);
+                lv_obj_set_style_pad_hor(bdg, 4, 0);
+                lv_obj_set_style_border_width(bdg, 2, 0);
+                lv_obj_set_style_border_color(bdg, LZ_SCREEN_BG, 0);  /* ring it off the tile */
+                char ub[6];
+                if(u <= 9) snprintf(ub, sizeof ub, "%d", u);
+                else       snprintf(ub, sizeof ub, "9+");
+                lv_obj_t *ul = lz_text(bdg, ub, LZ_F_SMALL, lv_color_white());
+                lv_obj_center(ul);
+                lv_obj_align(bdg, LV_ALIGN_TOP_RIGHT, 7, -6);
+            }
         }
 
         lz_nav_track(tile, i);

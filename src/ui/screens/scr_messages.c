@@ -115,6 +115,29 @@ static void resend_cb(lv_event_t *e)
     lv_async_call(resend_async, lv_event_get_user_data(e));
 }
 
+/* long-press a chat row -> silence/unsilence it (no notification, no badge) */
+static void mute_async(void *p) { lz_svc_toggle_mute((lz_thread_rt *)p); lz_rebuild(); }
+static void mute_longpress_cb(lv_event_t *e)
+{
+    /* swallow the rest of this press so lifting the finger doesn't ALSO fire a
+     * click and open the chat — you mute on hold, then tap again to enter */
+    lv_indev_t *ind = lv_indev_get_act();
+    if(ind) lv_indev_wait_release(ind);
+    lv_async_call(mute_async, lv_event_get_user_data(e));
+}
+
+/* a small crescent "moon" = silenced (iOS cue). carve must match the row bg so
+ * the cut-out reads as a crescent. */
+static void mute_moon(lv_obj_t *parent, lv_color_t carve)
+{
+    lv_obj_t *wrap = lz_box(parent);
+    lv_obj_set_size(wrap, 14, 14);
+    lv_obj_t *full = lz_dot(wrap, 13, lv_color_hex(0x8A929C));
+    lv_obj_center(full);
+    lv_obj_t *cut = lz_dot(wrap, 11, carve);
+    lv_obj_align(cut, LV_ALIGN_TOP_RIGHT, 2, -2);
+}
+
 void lz_scr_messages(lv_obj_t *root)
 {
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
@@ -171,9 +194,13 @@ void lz_scr_messages(lv_obj_t *root)
         for(int i = 0; i < vis_thread_count; i++) {
             lz_thread_rt *t = vis_threads[i];
             char ago[8]; lz_fmt_ago(t->last_ts, ago, sizeof ago);
+            bool unread = t->unread && !t->muted;
             lv_obj_t *row = lz_row(body, i == S.focus);
             lv_obj_set_style_radius(row, 11, 0);
+            if(unread && i != S.focus)               /* highlight an unread chat (dark mint) */
+                lv_obj_set_style_bg_color(row, lv_color_hex(0x123026), 0);
             if(!net_on(t->net)) lv_obj_set_style_opa(row, LV_OPA_40, 0);
+            lv_obj_add_event_cb(row, mute_longpress_cb, LV_EVENT_LONG_PRESSED, t); /* hold = silence */
 
             /* avatar + network dot */
             lv_obj_t *avwrap = lz_box(row);
@@ -199,7 +226,7 @@ void lz_scr_messages(lv_obj_t *root)
             lv_obj_set_height(top, LV_SIZE_CONTENT);
             lv_obj_set_flex_flow(top, LV_FLEX_FLOW_ROW);
             lv_obj_set_flex_align(top, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            lv_obj_t *name = lz_text(top, t->name, LZ_F_BODY, LZ_TEXT);
+            lv_obj_t *name = lz_text(top, t->name, LZ_F_BODY, unread ? lv_color_hex(0xF2F4F6) : LZ_TEXT);
             lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);
             lz_text(top, ago, LZ_F_SMALL, LZ_TEXT_META);
 
@@ -209,10 +236,13 @@ void lz_scr_messages(lv_obj_t *root)
             lv_obj_set_flex_flow(bot, LV_FLEX_FLOW_ROW);
             lv_obj_set_flex_align(bot, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
             lv_obj_t *snip = lz_text(bot, t->last_text, LZ_F_SMALL,
-                                     t->unread ? lv_color_hex(0xCFD4DA) : lv_color_hex(0x838A93));
+                                     unread ? lv_color_hex(0xCFD4DA) : lv_color_hex(0x838A93));
             lv_label_set_long_mode(snip, LV_LABEL_LONG_DOT);
             lv_obj_set_flex_grow(snip, 1);
-            if(t->unread) {
+            if(t->muted) {
+                /* silenced: a crescent moon instead of the unread badge */
+                mute_moon(bot, i == S.focus ? LZ_ROW_FOCUS_BG : LZ_ROW_BG);
+            } else if(t->unread) {
                 lv_obj_t *badge = lz_box(bot);
                 lv_obj_set_size(badge, LV_SIZE_CONTENT, 15);
                 lv_obj_set_style_min_width(badge, 15, 0);
@@ -265,6 +295,7 @@ void lz_scr_messages(lv_obj_t *root)
             char ago[8]; lz_fmt_ago(t->last_ts, ago, sizeof ago);
             lv_obj_t *row = lz_row(body, i == S.focus);
             lv_obj_set_style_radius(row, 11, 0);
+            lv_obj_add_event_cb(row, mute_longpress_cb, LV_EVENT_LONG_PRESSED, t); /* hold = silence */
 
             lv_obj_t *tile = lz_box(row);
             lv_obj_set_size(tile, 33, 33);
@@ -292,6 +323,8 @@ void lz_scr_messages(lv_obj_t *root)
                                      LZ_F_SMALL, LZ_TEXT_VALUE);
             lv_label_set_long_mode(last, LV_LABEL_LONG_DOT);
             lv_obj_set_width(last, lv_pct(100));
+            if(t->muted)        /* silenced channel: crescent moon at the right */
+                mute_moon(row, i == S.focus ? LZ_ROW_FOCUS_BG : LZ_ROW_BG);
             lz_nav_track(row, i);
         }
         lz_nav_set(1, vis_thread_count, messages_activate);

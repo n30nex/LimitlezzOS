@@ -367,6 +367,23 @@ int lz_svc_unread_count(void)
     return n;
 }
 
+/* total unread messages across all conversations (muted excluded) — drives the
+ * iPhone-style counter badge on the Messages home icon */
+int lz_svc_unread_total(void)
+{
+    int n = 0;
+    for(int i = 0; i < g_thread_count; i++)
+        if(!g_threads[i].muted) n += g_threads[i].unread;
+    return n;
+}
+
+/* silence/unsilence a conversation (RAM-only): a muted chat raises no
+ * notification and is excluded from the unread badge */
+void lz_svc_toggle_mute(lz_thread_rt *t)
+{
+    if(t) t->muted = !t->muted;
+}
+
 lz_thread_rt *lz_svc_thread_at(int display_idx)
 {
     if(display_idx < 0 || display_idx >= g_thread_count) return NULL;

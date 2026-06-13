@@ -54,6 +54,11 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
 - **iPhone-style dark UI** — status bar (time on the left; signal bars + Wi-Fi + a white
   battery glyph on the right), grouped Settings cards with hairline dividers, and
   enabled-network icons on the lock screen.
+- **Unread, at a glance** — unread chats are highlighted in the list, the Messages icon
+  carries a red counter badge (1–9, then "9+"), and you can **long-press any chat to
+  silence it** (crescent moon; no notification, no badge).
+- **sym + L = lock** — a keyboard shortcut to drop straight to the lock screen from
+  anywhere (still types a `"` inside a message, password, or the terminal).
 - **Serial console** — USB-CDC command shell for control + diagnostics (`help`, `time`, `tz`, `net`, `rf`, `mc`, `companion`, `touch`, …).
 
 ### 🧪 In testing
@@ -69,11 +74,14 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
 - 🚀 **0.41 — this release** — **lock-screen notifications** (centered card + "+N more"),
   **tap-to-wake/unlock**, **virtualized node list** (fixes the big-mesh crash), the
   **iPhone-style dark UI** pass, and the USB companion **confirmed working on hardware**.
-- **0.42** — highlight chats with unread messages.
-- **0.43** — iPhone-style unread **counter badge** on the Messages icon (1–9, then "+").
-- **0.44** — **silence** public/group chats (no notification, excluded from the badge).
+- ✅ **0.42** — highlight chats with unread messages (dark-mint row + brighter name).
+- ✅ **0.43** — unread **counter badge** on the Messages icon (1–9, then "9+"); muted excluded.
+- ✅ **0.44** — **silence** chats: long-press any chat to mute (crescent moon, no notification/badge).
+- ✅ **sym + L** — keyboard shortcut to lock the screen from anywhere.
 - **0.45** — responsiveness pass (Settings, chat log, keyboard input latency).
-- **0.5 (beta)** — **BLE companion** for Meshtastic (connect phones wirelessly).
+- **0.5 (beta)** — **BLE companion** for Meshtastic (connect phones wirelessly), and
+  **Developer mode**: the **Terminal** app is hidden from the home screen by default
+  and only appears once Developer mode is enabled in Settings.
 
 ### 🔭 Later
 - **MeshCore** — receive + default Public channel, then a MeshCore companion bridge (currently "Coming soon").

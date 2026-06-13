@@ -141,6 +141,9 @@ void lz_settime_key(lz_key_t k, char c);
 /* open a network-bound conversation (Messages rows, Contact detail "Message") */
 void lz_open_convo(lz_thread_rt *t);
 
+/* manual lock (sym+L keyboard shortcut) — jump to the lock screen */
+void lz_lock(void);
+
 /* interactive serial console (Terminal app) keyboard handling */
 void lz_term_key(lz_key_t k, char c);
 
