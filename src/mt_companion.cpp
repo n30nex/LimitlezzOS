@@ -120,6 +120,30 @@ static void send_channel_primary(void)
     send_fromradio(10, ch, n);
 }
 
+/* DeviceMetadata (FromRadio.metadata=13): firmware, role, hw_model */
+static void send_metadata(void)
+{
+    uint8_t m[48]; int n = 0;
+    n += pb_str(m + n, 1, "0.4.0-limitlezz");         /* firmware_version */
+    n += pb_uint(m + n, 7, 0);                        /* role = CLIENT */
+    n += pb_uint(m + n, 9, 50);                       /* hw_model = T_DECK */
+    send_fromradio(13, m, n);
+}
+
+/* Config (FromRadio.config=5): device (empty = defaults) + lora (US / LongFast) */
+static void send_configs(void)
+{
+    uint8_t cfg[8]; int n = pb_bytes(cfg, 1, NULL, 0);   /* Config.device = {} */
+    send_fromradio(5, cfg, n);
+
+    uint8_t lc[16]; int ln = 0;
+    ln += pb_uint(lc + ln, 1, 1);                     /* use_preset = true */
+    ln += pb_uint(lc + ln, 2, 0);                     /* modem_preset = LONG_FAST */
+    ln += pb_uint(lc + ln, 7, 1);                     /* region = US */
+    uint8_t c2[24]; int cn = pb_bytes(c2, 6, lc, ln); /* Config.lora */
+    send_fromradio(5, c2, cn);
+}
+
 static void send_config_complete(uint32_t nonce)
 {
     uint8_t m[8]; int n = pb_uint(m, 7, nonce);       /* FromRadio.config_complete_id */
@@ -152,12 +176,16 @@ extern "C" void lz_mtc_forward(uint32_t from, uint32_t to, uint32_t id, uint32_t
 /* ---------- ToRadio handling ---------- */
 static void do_want_config(uint32_t nonce)
 {
+    /* the order the official app's PhoneAPI uses: my_info, metadata, channel,
+     * config, then node DB, then config_complete */
     send_my_info();
+    send_metadata();
+    send_channel_primary();
+    send_configs();
     const lz_node_rt *nodes;
     int nn = lz_svc_nodes(&nodes);
     for(int i = 0; i < nn; i++)
         if(nodes[i].net == LZ_NET_MT) send_node_info(&nodes[i], 0);
-    send_channel_primary();
     send_config_complete(nonce);
 }
 

@@ -551,9 +551,9 @@ void lz_scr_tzpick(lv_obj_t *root)
         int off = TZ[i].off_min;
         char ob[24];
         int oh = off / 60, om = (off < 0 ? -off : off) % 60;
-        if(off == 0) snprintf(ob, sizeof ob, "UTC%s", TZ[i].rule != LZ_DST_NONE ? " ·DST" : "");
+        if(off == 0) snprintf(ob, sizeof ob, "UTC%s", TZ[i].rule != LZ_DST_NONE ? " +DST" : "");
         else snprintf(ob, sizeof ob, "UTC%+d:%02d%s", oh, om,
-                      TZ[i].rule != LZ_DST_NONE ? " ·DST" : "");
+                      TZ[i].rule != LZ_DST_NONE ? " +DST" : "");
         lz_text(row, ob, LZ_F_SMALL, LZ_TEXT_VALUE);
         if(sel) lz_dot(row, 7, LZ_MINT);   /* current selection marker */
         lz_nav_track(row, i);

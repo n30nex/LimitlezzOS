@@ -429,9 +429,9 @@ void lz_scr_convo(lv_obj_t *root)
         char ts[16]; lz_fmt_hm(msgs[i].ts, ts, sizeof ts);
         const char *st = "";
         if(self) switch(msgs[i].status) {
-            case LZ_MSG_SENDING:   st = " · sending"; break;
-            case LZ_MSG_DELIVERED: st = " · delivered"; break;
-            case LZ_MSG_FAILED:    st = " · failed - hold to resend"; break;
+            case LZ_MSG_SENDING:   st = "  sending"; break;
+            case LZ_MSG_DELIVERED: st = "  delivered"; break;
+            case LZ_MSG_FAILED:    st = "  failed - hold to resend"; break;
             default: break;
         }
         char tl[40]; snprintf(tl, sizeof tl, "%s%s", ts, st);
