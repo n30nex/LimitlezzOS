@@ -291,6 +291,31 @@ bool lz_store_load_mc_key(uint8_t *prv32)
     return ok;
 }
 
+/* ---- touch calibration transform (swap/invx/invy) ---- */
+
+void lz_store_save_touch(int swap, int invx, int invy)
+{
+    if(!g_persist) return;
+    char path[128];
+    path_for(path, sizeof path, "touch.cfg");
+    FILE *f = fopen(path, "w");
+    if(!f) return;
+    fprintf(f, "%d %d %d\n", swap, invx, invy);
+    fclose(f);
+}
+
+bool lz_store_load_touch(int *swap, int *invx, int *invy)
+{
+    if(!g_persist) return false;
+    char path[128];
+    path_for(path, sizeof path, "touch.cfg");
+    FILE *f = fopen(path, "r");
+    if(!f) return false;
+    bool ok = (fscanf(f, "%d %d %d", swap, invx, invy) == 3);
+    fclose(f);
+    return ok;
+}
+
 /* ---- node db ---- */
 
 void lz_store_save_nodes(const lz_node_rt *nodes, int n)

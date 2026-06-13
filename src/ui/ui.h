@@ -24,6 +24,7 @@ typedef enum {
     LZ_V_MESHTASTIC, LZ_V_MESHCORE, LZ_V_APPSTORE,
     LZ_V_CONTACTS, LZ_V_CONTACT, LZ_V_SETTINGS,
     LZ_V_SYSTEM, LZ_V_TERMINAL, LZ_V_FILES, LZ_V_WIFI, LZ_V_SETTIME, LZ_V_TZPICK,
+    LZ_V_TOUCHCAL,
     LZ_V_COUNT
 } lz_view_t;
 
@@ -65,6 +66,7 @@ typedef struct {
     int mt_tab;            /* 0 nodes, 1 channels  */
     int mc_tab;            /* 0 contacts, 1 rooms  */
     lz_node_rt *contact_sel;
+    int cal_step;          /* touch calibration: which target (0..2) */
 
     struct {
         int region, preset, tx;               /* cycle indices */
@@ -130,6 +132,8 @@ int  lz_tz_count(void);
 const char *lz_tz_name(int idx);
 int  lz_tz_find(const char *s);         /* by region name or abbrev; -1 if none */
 void lz_scr_tzpick(lv_obj_t *root);     /* timezone picker list */
+void lz_scr_touchcal(lv_obj_t *root);   /* 3-tap touch calibration */
+#define LZ_CAL_MARGIN 26                 /* target inset from the screen edges */
 void lz_settime_enter(void);            /* load current clock into the editor */
 void lz_settime_key(lz_key_t k, char c);
 

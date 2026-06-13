@@ -79,6 +79,39 @@ extern "C" int  lz_touch_info(char *buf, int n)
                     g_touch_debug ? "on" : "off");
 }
 
+/* touch-calibration capture: 3 raw points (TL, TR, BL) -> swap/invert transform.
+ * Tap edges are detected in touch_read_cb and processed in loop() (g_cal_pending),
+ * never inside the LVGL input callback. */
+extern "C" void lz_store_save_touch(int swap, int invx, int invy);
+extern "C" bool lz_store_load_touch(int *swap, int *invx, int *invy);
+static volatile bool g_cal_pending;
+static volatile int  g_cal_px, g_cal_py;
+static bool g_touch_down;
+static int  g_cal_rx[3], g_cal_ry[3];
+
+static void touchcal_register(int rx, int ry)
+{
+    int step = (S.cal_step >= 0 && S.cal_step <= 2) ? S.cal_step : 0;
+    g_cal_rx[step] = rx; g_cal_ry[step] = ry;
+    if(step < 2) { S.cal_step = step + 1; lz_rebuild(); return; }
+
+    /* derive the transform from the three taps */
+    int dx_tx = g_cal_rx[1] - g_cal_rx[0], dx_ty = g_cal_ry[1] - g_cal_ry[0];  /* +screenX */
+    int swap = (abs(dx_ty) > abs(dx_tx)) ? 1 : 0;
+    int sxd  = swap ? dx_ty : dx_tx;
+    int invx = (sxd < 0) ? 1 : 0;
+    int dy_tx = g_cal_rx[2] - g_cal_rx[0], dy_ty = g_cal_ry[2] - g_cal_ry[0];  /* +screenY */
+    int syd  = swap ? dy_tx : dy_ty;
+    int invy = (syd < 0) ? 1 : 0;
+
+    lz_touch_set_transform(swap, invx, invy);
+    lz_store_save_touch(swap, invx, invy);
+    Serial.printf("[ok] touch calibrated: swap=%d invx=%d invy=%d\n", swap, invx, invy);
+    S.cal_step = 0;
+    lz_back();
+    lz_rebuild();
+}
+
 /* ---- LovyanGFX config for the LilyGO T-Deck ST7789V (landscape 320x240) ----
  * ST7789 on the shared SPI bus (SCK40/MOSI41/MISO38), CS12/DC11, invert on,
  * bus_shared so it coexists with SD + LoRa. Matches Meshtastic's T-Deck LGFX. */
@@ -218,6 +251,11 @@ static void touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
                 if(millis() - last_log > 150) { last_log = millis();
                     Serial.printf("[touch] raw=(%d,%d) -> screen=(%d,%d)\n", tx, ty, sx, sy); }
             }
+            /* calibration: capture the raw coord once per touch-down */
+            if(S.view == LZ_V_TOUCHCAL && !g_touch_down && !g_cal_pending) {
+                g_cal_px = tx; g_cal_py = ty; g_cal_pending = true;
+            }
+            g_touch_down = true;
             last_x = sx;
             last_y = sy;
             data->point.x = sx;
@@ -225,6 +263,8 @@ static void touch_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
             data->state = LV_INDEV_STATE_PRESSED;
             lz_note_activity();                  /* touch keeps the screen awake */
         }
+    } else {
+        g_touch_down = false;                    /* finger lifted */
     }
     gt911_write8(0x814E, 0);                     /* ack: clear buffer status */
 }
@@ -408,6 +448,11 @@ void setup()
     kb_set_brightness(200);              /* keyboard backlight on (via I2C to the C3) */
 
     lz_ui_init(lv_scr_act());            /* applies brightness via backlight_set */
+    { int sw, ix, iy;                    /* apply a saved touch calibration, if any */
+      if(lz_store_load_touch(&sw, &ix, &iy)) {
+          lz_touch_set_transform(sw, ix, iy);
+          Serial.printf("[ok] touch calibration loaded: swap=%d invx=%d invy=%d\n", sw, ix, iy);
+      } }
     Serial.println("=== boot complete ===");
     lz_cli_begin();                      /* serial command console */
 }
@@ -504,6 +549,10 @@ void loop()
         last_save = S.settings.save;
         setCpuFrequencyMhz(S.settings.save ? 80 : 240);
     }
+
+    /* touch-calibration tap captured in the input callback — apply it here,
+     * outside LVGL's input processing (touchcal_register may rebuild) */
+    if(g_cal_pending) { g_cal_pending = false; touchcal_register(g_cal_px, g_cal_py); }
 
     lz_idle_tick();                      /* sleep-after: dim + lock when idle */
     lv_timer_handler();

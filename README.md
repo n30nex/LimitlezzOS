@@ -48,6 +48,10 @@ font tables, no images, no gradients, no alpha layering.
 - **Touch mis-registration** — taps sometimes hit the wrong row (e.g. open a chat instead of the target); wants a **screen calibration**.
 - **Clock format** — add a **12-hour (AM/PM) vs 24-hour** option.
 
+**Future hardening**
+- **Wi-Fi password storage** — currently saved in plaintext on the SD card
+  (`/limitlezz/wifi.cfg`); move to NVS or encrypt it.
+
 ![screens](docs/screens.png)
 
 ## Layout

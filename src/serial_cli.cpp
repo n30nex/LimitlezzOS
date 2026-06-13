@@ -50,7 +50,7 @@ static void cmd_help(void)
         "  mc test              build+verify our advert (proves nodes will accept it)\n"
         "  companion on|off     USB acts as a Meshtastic-app companion radio\n"
         "  companion test       loopback-verify the companion protocol\n"
-        "  touch [debug|S X Y]  show/calibrate touch (S=swap X=invx Y=invy), 'touch debug' logs taps\n"
+        "  touch [cal|debug|S X Y]  touch: 'cal' runs on-screen calibration, 'debug' logs taps, 'S X Y' sets transform\n"
         "  nodes                list heard nodes\n"
         "  send <text>          broadcast text on the channel\n"
         "  stats                radio TX/RX + airtime utilization\n"
@@ -168,6 +168,11 @@ static void cmd_mc(char *args)
 
 static void cmd_touch(char *args)
 {
+    if(args && strcmp(args, "cal") == 0) {
+        S.cal_step = 0; lz_go(LZ_V_TOUCHCAL); lz_rebuild();
+        Serial.println("[ok] calibration: tap the 3 green dots on the screen");
+        return;
+    }
     if(args && strcmp(args, "debug") == 0) {
         static bool on = false; on = !on;
         if(lz_touch_set_debug) lz_touch_set_debug(on);
