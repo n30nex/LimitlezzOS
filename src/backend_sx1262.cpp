@@ -129,6 +129,8 @@ static uint32_t airtime_ms(int payload_len)
     return (uint32_t)((tPreamble + tPayload) * 1000.0f);
 }
 
+static void send_nodeinfo(uint32_t to, bool want_response);   /* fwd decl */
+
 /* ---- minimal Meshtastic User decode (NodeInfo payload) ---- */
 static void parse_user(const uint8_t *b, int len, uint32_t from, float snr)
 {
@@ -250,6 +252,8 @@ static void handle_rx_mt(void)
                 lz_core_on_text(f.from, f.to, text, hops_used, snr);
             } else if(d.portnum == MT_PORT_NODEINFO) {
                 parse_user(d.payload, d.plen, f.from, snr);
+                /* a targeted NodeInfo request -> reply with ours (incl. our key) */
+                if(d.want_response && f.to == me) send_nodeinfo(f.from, false);
             }
         }
     }
@@ -284,10 +288,12 @@ static void handle_rx_mc(void)
     }
 }
 
-/* ---- NodeInfo (our User) periodic broadcast so peers learn our name ---- */
+/* ---- NodeInfo: broadcast our User so peers learn our name + public key, or
+ *      send it to one node with want_response to REQUEST their NodeInfo back
+ *      (how keys are exchanged promptly instead of waiting hours) ---- */
 static uint32_t g_last_nodeinfo;
 
-static void broadcast_nodeinfo(void)
+static void send_nodeinfo(uint32_t to, bool want_response)
 {
     const lz_identity_t *id = lz_svc_identity();
     uint8_t user[112];
@@ -307,6 +313,7 @@ static void broadcast_nodeinfo(void)
     mt_data_t d;
     memset(&d, 0, sizeof d);
     d.portnum = MT_PORT_NODEINFO;
+    d.want_response = want_response;             /* set on a request so the peer replies */
     memcpy(d.payload, user, n);
     d.plen = (uint8_t)n;
 
@@ -318,14 +325,25 @@ static void broadcast_nodeinfo(void)
 
     mt_frame_t f;
     memset(&f, 0, sizeof f);
-    f.to = MT_BROADCAST; f.from = id->num; f.id = pid;
+    f.to = to; f.from = id->num; f.id = pid;
     f.hop_limit = 3; f.hop_start = 3;
+    f.want_ack = false;
     f.channel_hash = mt_channel_hash();
 
     uint8_t frame[160];
     mt_header_write(frame, &f);
     memcpy(frame + MT_HEADER_LEN, plain, pn);
     tx_frame(frame, MT_HEADER_LEN + pn);
+}
+
+static void broadcast_nodeinfo(void) { send_nodeinfo(MT_BROADCAST, false); }
+
+/* ask one node for its NodeInfo (so we learn its public key for PKI DMs) */
+extern "C" void lz_backend_request_nodeinfo(uint32_t to)
+{
+    if(!g_ok || !g_net_mt || to == MT_BROADCAST) return;
+    if(g_active != PROF_MT) { apply_profile(PROF_MT); g_slot_until = millis() + SLOT_MS; }
+    send_nodeinfo(to, true);
 }
 
 /* ---- MeshCore self-advert: a signed ADVERT so other nodes discover us ----

@@ -162,6 +162,7 @@ bool lz_backend_ok(void);            /* radio init succeeded (diagnostics) */
 int  lz_backend_begin_state(void);   /* RadioLib begin() return code */
 void lz_backend_set_tx_power(int dbm);  /* live TX power change */
 void lz_backend_set_networks(bool mt, bool mc);  /* drive the TDM schedule */
+void lz_backend_request_nodeinfo(uint32_t to);   /* ask a node for its NodeInfo (PKI key) */
 bool lz_backend_mc_advert_now(bool flood);       /* send a MeshCore self-advert (flood/zero-hop) */
 void lz_backend_mc_addr(char *buf, int n);       /* our MeshCore address, e.g. "MC-978bbe5f" */
 /* companion bridge: USB serial speaks the Meshtastic app protocol when active */

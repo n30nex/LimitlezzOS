@@ -60,6 +60,7 @@ bool lz_backend_send(lz_mt_packet_t *p)
 void lz_backend_stats(lz_radio_stats_t *out) { *out = g_stats; }
 void lz_backend_set_tx_power(int dbm) { (void)dbm; }   /* no real radio in the sim */
 void lz_backend_set_networks(bool mt, bool mc) { (void)mt; (void)mc; }  /* no TDM in the sim */
+void lz_backend_request_nodeinfo(uint32_t to) { (void)to; }            /* no radio in the sim */
 bool lz_backend_mc_advert_now(bool flood) { (void)flood; return true; }  /* sim: pretend sent */
 void lz_backend_mc_addr(char *buf, int n) { snprintf(buf, n, "MC-1ec77175"); }
 static bool g_sim_companion;

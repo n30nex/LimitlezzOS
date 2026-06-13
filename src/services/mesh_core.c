@@ -403,6 +403,12 @@ void lz_svc_open_thread(lz_thread_rt *t)
     t->unread = 0;
     g_tail_count = lz_store_load_tail(t->addr, g_tail, LZ_TAIL_MAX);
     lz_store_save_threads(g_threads, g_thread_count);
+    /* opening a Meshtastic DM without the peer's key -> request its NodeInfo so
+     * we can PKI-encrypt (the reply carries the key, usually within a second) */
+    if(!t->is_channel && t->node_num != LZ_BROADCAST && t->net == LZ_NET_MT) {
+        uint8_t k[32];
+        if(!lz_svc_node_pubkey(t->node_num, k)) lz_backend_request_nodeinfo(t->node_num);
+    }
 }
 
 int lz_svc_tail(const lz_msg_rt **out) { *out = g_tail; return g_tail_count; }

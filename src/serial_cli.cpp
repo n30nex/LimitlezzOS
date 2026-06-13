@@ -52,7 +52,7 @@ static void cmd_help(void)
         "  companion on|off     USB acts as a Meshtastic-app companion radio\n"
         "  companion test       loopback-verify the companion protocol\n"
         "  touch [cal|debug|S X Y]  touch: 'cal' runs on-screen calibration, 'debug' logs taps, 'S X Y' sets transform\n"
-        "  dm test              PKI direct-message crypto self-test (round-trip)\n"
+        "  dm test|req <sc>|send <sc> <text>   PKI DM: self-test / request a node's key / send a DM\n"
         "  nodes                list heard nodes\n"
         "  send <text>          broadcast text on the channel\n"
         "  stats                radio TX/RX + airtime utilization\n"
@@ -175,7 +175,27 @@ static void cmd_dm(char *args)
         else Serial.println("[--] PKI not present");
         return;
     }
-    Serial.println("usage: dm test   (PKI crypto round-trip self-test)");
+    if(args && strncmp(args, "req ", 4) == 0) {           /* dm req <shortcode> */
+        lz_node_rt *n = lz_svc_node_by_shortcode(args + 4);
+        if(n) { lz_backend_request_nodeinfo(n->num); Serial.printf("[ok] requested NodeInfo from %s\n", n->name); }
+        else Serial.println("[err] node not found");
+        return;
+    }
+    if(args && strncmp(args, "send ", 5) == 0) {          /* dm send <shortcode> <text> */
+        char *p = args + 5; char *sp = strchr(p, ' ');
+        if(!sp) { Serial.println("usage: dm send <shortcode> <text>"); return; }
+        *sp = 0; const char *text = sp + 1;
+        lz_node_rt *n = lz_svc_node_by_shortcode(p);
+        if(!n) { Serial.println("[err] node not found"); return; }
+        lz_thread_rt *t = lz_svc_thread_for_node(n);
+        uint8_t k[32];
+        bool keyed = lz_svc_node_pubkey(n->num, k);
+        if(t && lz_svc_send_text(t, text))
+            Serial.printf("[ok] DM sent to %s (%s)\n", n->name, keyed ? "PKI" : "PSK fallback - no key yet");
+        else Serial.println("[err] send failed");
+        return;
+    }
+    Serial.println("usage: dm test | dm req <shortcode> | dm send <shortcode> <text>");
 }
 
 static void cmd_touch(char *args)
@@ -227,10 +247,10 @@ static void cmd_nodes(void)
     for(int i = 0; i < n; i++) {
         const lz_node_rt *nd = &nodes[i];
         lz_fmt_ago(nd->last_heard, ago, sizeof ago);
-        Serial.printf("  %-10s %-16s %s  SNR %.1f  %s%s%s\n",
-                      nd->id, nd->name, nd->net == LZ_NET_MC ? "MC" : "MT",
-                      nd->snr, ago, nd->has_key ? "  key" : "",
-                      nd->contact ? "  *contact" : "");
+        Serial.printf("  [%-4s] %-10s %-15s %s SNR %.1f %s%s%s\n",
+                      nd->shortcode, nd->id, nd->name, nd->net == LZ_NET_MC ? "MC" : "MT",
+                      nd->snr, ago, nd->has_key ? " key" : "",
+                      nd->contact ? " *contact" : "");
     }
 }
 
