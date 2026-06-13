@@ -27,9 +27,9 @@ extern "C" {
 #define LZ_TAIL_MAX     32
 #define LZ_TEXT_MAX     200
 
-/* Stage 1 is Meshtastic-only (spec roadmap). MeshCore stays visible but
- * grayed/locked until its stack lands in Stage 2. Flip to 1 to re-enable. */
-#define LZ_MESHCORE_ENABLED 0
+/* MeshCore runs as a second RF profile, time-division multiplexed with
+ * Meshtastic on the one SX1262 (see lz_backend_set_networks). */
+#define LZ_MESHCORE_ENABLED 1
 
 typedef struct {
     uint32_t num;                /* node number (low 32 of MAC on Meshtastic) */
@@ -155,6 +155,7 @@ void lz_backend_stats(lz_radio_stats_t *out);
 bool lz_backend_ok(void);            /* radio init succeeded (diagnostics) */
 int  lz_backend_begin_state(void);   /* RadioLib begin() return code */
 void lz_backend_set_tx_power(int dbm);  /* live TX power change */
+void lz_backend_set_networks(bool mt, bool mc);  /* drive the TDM schedule */
 
 /* called by backends on radio events */
 void lz_core_on_text(uint32_t from, uint32_t to, const char *text, int hops_used, float snr);
@@ -163,6 +164,9 @@ void lz_core_on_nodeinfo(uint32_t from, const char *id, const char *long_name,
 void lz_core_on_heard(uint32_t from, float snr);        /* any packet from a node */
 void lz_core_on_battery(uint32_t from, int batt);
 void lz_core_on_ack(uint32_t request_id);
+/* MeshCore: learn a node from a (signed, unencrypted) ADVERT.
+ * adv_type: 1=Chat 2=Repeater 3=Room 4=Sensor */
+void lz_core_on_mc_node(const uint8_t *pubkey, const char *name, int adv_type, float snr);
 
 #ifdef __cplusplus
 }

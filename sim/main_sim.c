@@ -157,6 +157,13 @@ static void shots(const char *dir)
         lz_ui_key(LZ_K_ENTER, 0); pump(30);             /* finish -> inbox */
     }
 
+    /* seed a few MeshCore nodes (as if heard via ADVERT) so the MeshCore screen
+     * has content; enable the network so it renders active */
+    S.net_mc = true;
+    { uint8_t k1[32] = { 0x7a, 0x3f }; lz_core_on_mc_node(k1, "Trail Runner", 1, 6.0f); }
+    { uint8_t k2[32] = { 0x4f, 0x8e }; lz_core_on_mc_node(k2, "Ridge Repeater", 2, -3.5f); }
+    { uint8_t k3[32] = { 0xb2, 0x10 }; lz_core_on_mc_node(k3, "Base Camp", 3, 2.0f); }
+
     lz_node_rt *ava = lz_svc_node_by_name("Ava Reyes");
     for(unsigned i = 0; i < sizeof(SHOTS) / sizeof(SHOTS[0]); i++) {
         S.view = SHOTS[i].v;

@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 
-static void net_toggle_mt(void) { S.net_mt = !S.net_mt; lz_rebuild(); }
-static void net_toggle_mc(void) { if(!LZ_MESHCORE_ENABLED) return; S.net_mc = !S.net_mc; lz_rebuild(); }
+static void net_toggle_mt(void) { S.net_mt = !S.net_mt; lz_apply_networks(); lz_rebuild(); }
+static void net_toggle_mc(void) { S.net_mc = !S.net_mc; lz_apply_networks(); lz_rebuild(); }
 static void step_continue(void) { lz_onboard_advance(); }
 
 /* step-2 focus engine: Enter on a network row toggles it, Enter on Continue advances */

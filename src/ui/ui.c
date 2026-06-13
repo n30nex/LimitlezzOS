@@ -59,6 +59,10 @@ void lz_idle_tick(void)
 
 lz_state_t S;
 
+/* push the network enable toggles to the radio backend's TDM scheduler:
+ * both on -> round-robin split, one on -> 100%, neither -> idle */
+void lz_apply_networks(void) { lz_backend_set_networks(S.net_mt, S.net_mc); }
+
 static lv_obj_t *g_root;
 static int g_cols = 1;
 static int g_count = 0;
@@ -74,7 +78,7 @@ void lz_ui_init(lv_obj_t *root)
     memset(&S, 0, sizeof(S));
     S.view = lz_svc_needs_onboarding() ? LZ_V_ONBOARD : LZ_V_LOCK;
     S.net_mt = true;
-    S.net_mc = LZ_MESHCORE_ENABLED ? true : false;   /* locked off until Stage 2 */
+    S.net_mc = false;         /* MeshCore off by default; enabling it starts TDM */
     S.settings.gps = false;   /* off by default to save battery (GPS unused in Alpha) */
     S.settings.dark = true;
     S.settings.save = false;
@@ -84,6 +88,7 @@ void lz_ui_init(lv_obj_t *root)
     S.settings.kb_light = 0;  /* Auto */
     S.settings.tz_idx = 0;    /* Eastern (EST/EDT, DST-aware) by default */
     lz_tz_apply(0);
+    lz_apply_networks();      /* push the initial Meshtastic/MeshCore schedule to the radio */
     g_root = root;
     lv_obj_remove_style_all(root);
     lv_obj_set_size(root, LZ_W, LZ_H);

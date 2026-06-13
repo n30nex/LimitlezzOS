@@ -18,6 +18,7 @@
  * so the console links even on builds without the scheduler. */
 extern "C" void lz_backend_set_networks(bool mt, bool mc) __attribute__((weak));
 extern "C" int  lz_backend_tdm_info(char *buf, int n)     __attribute__((weak));
+extern "C" void lz_backend_mc_tune(float freq, float bw, int sf, int cr, int sync) __attribute__((weak));
 
 static char    g_line[160];
 static uint8_t g_len;
@@ -36,6 +37,7 @@ static void cmd_help(void)
         "  net                  show network enable state\n"
         "  net mt|mc on|off     enable/disable a network (drives TDM)\n"
         "  rf                   show radio profile + TDM schedule\n"
+        "  rf mc <f> <bw> <sf> <cr> [sync]  tune MeshCore RF (e.g. rf mc 910.525 62.5 7 5)\n"
         "  nodes                list heard nodes\n"
         "  send <text>          broadcast text on the channel\n"
         "  stats                radio TX/RX + airtime utilization\n"
@@ -107,10 +109,19 @@ static void cmd_net(char *args)
                   S.net_mt ? "on" : "off", S.net_mc ? "on" : "off");
 }
 
-static void cmd_rf(void)
+static void cmd_rf(char *args)
 {
+    /* `rf mc <freq> <bw> <sf> <cr> [sync]` live-tunes the MeshCore profile */
+    if(args && args[0] && lz_backend_mc_tune) {
+        char sub[8] = {0}; float freq = 0, bw = 0; int sf = 0, cr = 0;
+        unsigned sync = 0; int got = sscanf(args, "%7s %f %f %d %d %x", sub, &freq, &bw, &sf, &cr, &sync);
+        if(got >= 1 && strcmp(sub, "mc") == 0) {
+            lz_backend_mc_tune(freq, bw, sf, cr, got >= 6 ? (int)sync : -1);
+            Serial.println("[ok] MeshCore RF tuned");
+        }
+    }
     if(lz_backend_tdm_info) {
-        char buf[256];
+        char buf[300];
         lz_backend_tdm_info(buf, sizeof buf);
         Serial.println(buf);
     } else {
@@ -195,7 +206,7 @@ static void dispatch(char *line)
     else if(!strcmp(line, "settime")) cmd_settime(args);
     else if(!strcmp(line, "tz"))      cmd_tz(args);
     else if(!strcmp(line, "net"))     cmd_net(args);
-    else if(!strcmp(line, "rf"))      cmd_rf();
+    else if(!strcmp(line, "rf"))      cmd_rf(args);
     else if(!strcmp(line, "nodes"))   cmd_nodes();
     else if(!strcmp(line, "send"))    cmd_send(args);
     else if(!strcmp(line, "stats"))   cmd_stats();

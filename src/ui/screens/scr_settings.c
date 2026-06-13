@@ -91,8 +91,8 @@ static bool settings_disabled(int idx) { return idx == 1 && !LZ_MESHCORE_ENABLED
 static void settings_activate(int f)
 {
     switch(f) {
-        case 0: S.net_mt = !S.net_mt; break;
-        case 1: if(!LZ_MESHCORE_ENABLED) return; S.net_mc = !S.net_mc; break;
+        case 0: S.net_mt = !S.net_mt; lz_apply_networks(); break;
+        case 1: S.net_mc = !S.net_mc; lz_apply_networks(); break;
         case 2: cycle(&S.settings.region, 5); break;
         case 3: cycle(&S.settings.preset, 4); break;
         case 4: cycle(&S.settings.tx, 4); lz_backend_set_tx_power(TXPOW_DBM[S.settings.tx]); break;
@@ -216,7 +216,8 @@ void lz_scr_settings(lv_obj_t *root)
     lv_label_set_long_mode(noteL, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(noteL, lv_pct(100));
 
-    /* --- NETWORKS: first-class toggles (MeshCore locked until Stage 2) --- */
+    /* --- NETWORKS: first-class toggles; flipping these drives the radio's
+     *     time-division schedule (both = split, one = 100%) --- */
     lv_obj_t *nets = group_card(body, "NETWORKS");
     for(int i = 0; i < 2; i++) {
         bool is_mt = i == 0;

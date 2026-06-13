@@ -496,6 +496,28 @@ void lz_core_on_nodeinfo(uint32_t from, const char *id, const char *long_name,
     mark_dirty();
 }
 
+/* MeshCore advert ingress: learn a node's name + role from a signed (and
+ * unencrypted) ADVERT. Identity is keyed off the public key's leading bytes. */
+void lz_core_on_mc_node(const uint8_t *pubkey, const char *name, int adv_type, float snr)
+{
+    uint32_t num = ((uint32_t)pubkey[0] << 24) | ((uint32_t)pubkey[1] << 16) |
+                   ((uint32_t)pubkey[2] << 8) | (uint32_t)pubkey[3];
+    char id[16];
+    snprintf(id, sizeof id, "MC-%02x%02x", pubkey[0], pubkey[1]);
+    lz_node_rt *n = ensure_node(num, id, LZ_NET_MC);
+    if(!n) return;
+    n->net = LZ_NET_MC;
+    if(name && name[0]) snprintf(n->name, sizeof n->name, "%s", name);
+    snprintf(n->shortcode, sizeof n->shortcode, "%02x%02x", pubkey[0], pubkey[1]);
+    const char *role = adv_type == 2 ? "Repeater" : adv_type == 3 ? "Room"
+                     : adv_type == 4 ? "Sensor"   : "Chat";
+    snprintf(n->role, sizeof n->role, "%s", role);
+    if(!isnan(snr)) n->snr = snr;
+    n->last_heard = now_epoch();
+    lz_store_save_nodes(g_nodes, g_node_count);
+    mark_dirty();
+}
+
 void lz_core_on_battery(uint32_t from, int batt)
 {
     lz_node_rt *n = find_node(from);

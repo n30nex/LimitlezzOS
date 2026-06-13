@@ -136,9 +136,19 @@ mesh.
   credentials on the SD card, an **auto-connect** toggle (rejoin on boot / on
   reappearance / after a drop, or never), and long-press-to-forget so you can
   change a saved password.
+- **MeshCore via TDM** — MeshCore runs as a second RF profile time-division
+  multiplexed with Meshtastic on the one SX1262: the radio listens on one
+  profile, retunes, listens on the other, round-robin. Both networks on → 50/50
+  airtime split (the scheduler the airtime bar visualizes); only one on → that
+  profile gets the radio 100% with no switching. MeshCore ADVERTs (signed, not
+  encrypted) are decoded to learn nodes by name + role (Chat/Repeater/Room/
+  Sensor). MeshCore US profile: 910.525 MHz / 62.5 kHz / SF7 / CR4-5 / sync
+  PRIVATE.
 - **Real status everywhere** — the status bar clock, battery %, and charge
   state are live; identity, node table, and message history persist across
   reboots; nothing on screen is hard-coded demo data on hardware.
+- **Serial console** — a USB-CDC command shell (`help`, `time`, `tz`, `net`,
+  `rf`, `nodes`, `send`, `stats`, `wifi`, `sys`, …) for control + diagnostics.
 - **Terminal / Files** — mono console with blinking cursor; /sdcard listing.
 
 ## Status against the master-spec roadmap
@@ -151,12 +161,15 @@ dedup, managed flood), live clock (manual + NTP + named time zones), Wi-Fi with
 saved credentials and auto-connect, keyboard backlight, and real
 battery/system telemetry.
 
-Still ahead: on-hardware RF validation against a stock node, ACK/routing
-(ROUTING_APP) and retransmit, position/telemetry decode, the Lua app sandbox,
+**Stage 2 (MeshCore) has landed**: MeshCore runs as a second RF profile,
+time-division multiplexed with Meshtastic on the one SX1262 (round-robin
+listen/retune; both on = 50/50 split, one on = 100%). MeshCore ADVERTs are
+decoded so nodes appear by name + role on the amber side of the UI; the airtime
+split bar reflects the live schedule.
+
+Still ahead: ACK/routing (ROUTING_APP) and retransmit, position/telemetry
+decode, MeshCore encrypted-payload (DM/channel) decode, the Lua app sandbox,
 App Store networking, OTA, and the Feedback Manager (LED/buzzer/backlight).
-**MeshCore + the TDM airtime arbiter are Stage 2** — the amber side of the UI
-and the airtime split bar are in place; the second radio stack is the next
-piece of work landing on the proven Meshtastic base.
 
 ## Flashing & first hardware test
 

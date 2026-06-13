@@ -18,6 +18,7 @@
 #include <RadioLib.h>
 #include "services/mesh.h"
 #include "services/mtproto.h"
+#include "services/mcproto.h"
 
 /* ---- T-Deck SX1262 pin map (variant.h) ---- */
 #define PIN_LORA_NSS    9
@@ -44,6 +45,43 @@ static int           g_begin_state = 0x7FFF;   /* RadioLib begin() return code *
 static lz_radio_stats_t g_stats;
 static uint32_t      g_airtime_ms;        /* cumulative TX airtime */
 static uint32_t      g_boot_ms;
+
+/* ================= time-division multiplexing of the one radio =================
+ * Two RF profiles share the SX1262. When both networks are on we round-robin:
+ * tune to one profile, listen for a slot, retune to the other, repeat. When
+ * only one network is on, that profile gets the radio 100% (no switching).
+ * MeshCore params verified against meshcore-dev/MeshCore (US: 910.525 / 62.5 /
+ * SF7 / CR4-5 / sync PRIVATE / preamble 32). */
+typedef struct { float freq, bw; uint8_t sf, cr; uint16_t preamble; uint8_t sync; } rf_prof_t;
+enum { PROF_MT = 0, PROF_MC = 1 };
+static rf_prof_t g_prof[2] = {
+    { RF_FREQ_MHZ, RF_BW_KHZ, RF_SF, RF_CR, RF_PREAMBLE, RF_SYNCWORD },          /* Meshtastic LongFast */
+    { 910.525f,    62.5f,     7,     5,     32,          RADIOLIB_SX126X_SYNC_WORD_PRIVATE }, /* MeshCore US */
+};
+
+static bool     g_net_mt = true;          /* Meshtastic enabled */
+static bool     g_net_mc = false;         /* MeshCore enabled   */
+static int      g_active = PROF_MT;       /* profile the radio is tuned to now */
+static uint32_t g_slot_until;             /* millis() when the current dwell ends (0 = no switching) */
+static const uint32_t SLOT_MS = 500;      /* dwell per profile when both are on */
+static uint32_t g_rx_mt, g_rx_mc;         /* per-network packet counts */
+static uint32_t g_switches;               /* TDM profile switches */
+
+/* retune the radio to a profile and resume RX (the "switch modes" step) */
+static void apply_profile(int which)
+{
+    if(!g_ok) return;
+    const rf_prof_t *p = &g_prof[which];
+    radio.standby();
+    radio.setFrequency(p->freq);
+    radio.setBandwidth(p->bw);
+    radio.setSpreadingFactor(p->sf);
+    radio.setCodingRate(p->cr);
+    radio.setSyncWord(p->sync);
+    radio.setPreambleLength(p->preamble);
+    radio.startReceive();
+    g_active = which;
+}
 
 /* dedup ring of recently-seen (from,id) so we don't reprocess/rebroadcast */
 #define SEEN_N 24
@@ -145,7 +183,8 @@ static void rebroadcast(uint8_t *frame, int len, mt_frame_t *f)
     tx_frame(frame, len);
 }
 
-static void handle_rx(void)
+/* ---- Meshtastic RX (active profile == PROF_MT) ---- */
+static void handle_rx_mt(void)
 {
     uint8_t buf[256];
     int len = radio.getPacketLength();
@@ -156,6 +195,7 @@ static void handle_rx(void)
 
     float snr = radio.getSNR();
     g_stats.rx_count++;
+    g_rx_mt++;
 
     mt_frame_t f;
     if(!mt_header_read(buf, len, &f)) return;
@@ -191,6 +231,32 @@ static void handle_rx(void)
 
     /* managed flood: rebroadcast packets not addressed to us */
     if(f.to != me) rebroadcast(buf, len, &f);
+}
+
+/* ---- MeshCore RX (active profile == PROF_MC) ----
+ * We decode ADVERTs (signed, unencrypted) to learn nodes by name + role.
+ * Other MeshCore types are encrypted (need ECDH/channel keys we don't hold),
+ * so they're counted but not opened. */
+static void handle_rx_mc(void)
+{
+    uint8_t buf[256];
+    int len = radio.getPacketLength();
+    if(len <= 0 || len > (int)sizeof buf) { radio.startReceive(); return; }
+    int st = radio.readData(buf, len);
+    radio.startReceive();
+    if(st != RADIOLIB_ERR_NONE) return;
+
+    float snr = radio.getSNR();
+    g_stats.rx_count++;
+    g_rx_mc++;
+
+    mc_pkt_t p;
+    if(!mc_parse(buf, len, &p)) return;
+    if(p.payload_type == MC_PAYLOAD_ADVERT) {
+        mc_advert_t a;
+        if(mc_advert_decode(&p, &a))
+            lz_core_on_mc_node(a.pubkey, a.has_name ? a.name : NULL, a.adv_type, snr);
+    }
 }
 
 /* ---- NodeInfo (our User) periodic broadcast so peers learn our name ---- */
@@ -267,20 +333,42 @@ void lz_backend_set_tx_power(int dbm)
 void lz_backend_loop(void)
 {
     if(!g_ok) return;
-    if(g_rx_flag) { g_rx_flag = false; handle_rx(); }
 
-    /* announce our node info shortly after boot, then every ~5 min */
+    /* TDM: when both networks are on, hand the radio to the other profile once
+     * the current dwell expires (listen -> retune -> listen, round-robin) */
     uint32_t now = millis();
-    if(g_last_nodeinfo == 0 ? (now - g_boot_ms > 4000)
-                            : (now - g_last_nodeinfo > 300000)) {
-        g_last_nodeinfo = now;
-        broadcast_nodeinfo();
+    if(g_net_mt && g_net_mc && g_slot_until && now >= g_slot_until) {
+        apply_profile(g_active == PROF_MT ? PROF_MC : PROF_MT);
+        g_switches++;
+        g_slot_until = now + SLOT_MS;
+    }
+
+    /* a received packet belongs to whichever profile we're tuned to right now */
+    if(g_rx_flag) {
+        g_rx_flag = false;
+        if(g_active == PROF_MT) handle_rx_mt();
+        else                    handle_rx_mc();
+    }
+
+    /* announce our Meshtastic node info shortly after boot, then every ~5 min —
+     * only while actually listening on Meshtastic (tx must use the MT profile) */
+    if(g_net_mt && g_active == PROF_MT) {
+        if(g_last_nodeinfo == 0 ? (now - g_boot_ms > 4000)
+                                : (now - g_last_nodeinfo > 300000)) {
+            g_last_nodeinfo = now;
+            broadcast_nodeinfo();
+        }
     }
 }
 
 bool lz_backend_send(lz_mt_packet_t *p)
 {
-    if(!g_ok) return false;
+    if(!g_ok || !g_net_mt) return false;        /* Meshtastic TX needs the MT network on */
+    /* a Meshtastic frame must go out on the MT profile; if a TDM slot has us on
+     * MeshCore right now, retune to MT for the transmit (the scheduler resumes
+     * round-robin on its next tick) */
+    if(g_active != PROF_MT) { apply_profile(PROF_MT); g_slot_until = millis() + SLOT_MS; }
+
     /* wrap the service payload in a Data protobuf, encrypt, frame, transmit */
     mt_data_t d;
     memset(&d, 0, sizeof d);
@@ -314,6 +402,60 @@ void lz_backend_stats(lz_radio_stats_t *out)
     uint32_t up = millis() - g_boot_ms;
     g_stats.util_pct = up ? (float)g_airtime_ms / (float)up * 100.0f : 0.0f;
     *out = g_stats;
+}
+
+/* ================= TDM control (called from the UI / serial console) ================= */
+
+/* Enable/disable each network. Drives the schedule: both -> round-robin split,
+ * one -> that profile 100% (no switching), neither -> radio idle. */
+extern "C" void lz_backend_set_networks(bool mt, bool mc)
+{
+    g_net_mt = mt;
+    g_net_mc = mc;
+    if(!g_ok) return;
+    if(mt && mc) {                       /* share the radio, start on Meshtastic */
+        apply_profile(PROF_MT);
+        g_slot_until = millis() + SLOT_MS;
+    } else if(mt) {
+        apply_profile(PROF_MT); g_slot_until = 0;
+    } else if(mc) {
+        apply_profile(PROF_MC); g_slot_until = 0;
+    } else {
+        radio.standby(); g_slot_until = 0; /* neither: stop listening */
+    }
+}
+
+/* live-tune the MeshCore RF profile (serial `rf mc <freq> <bw> <sf> <cr> [sync]`).
+ * sync < 0 leaves the sync word unchanged. */
+extern "C" void lz_backend_mc_tune(float freq, float bw, int sf, int cr, int sync)
+{
+    if(freq > 100.0f) g_prof[PROF_MC].freq = freq;
+    if(bw > 0.0f)     g_prof[PROF_MC].bw = bw;
+    if(sf >= 5 && sf <= 12) { g_prof[PROF_MC].sf = sf; g_prof[PROF_MC].preamble = sf <= 8 ? 32 : 16; }
+    if(cr >= 5 && cr <= 8)  g_prof[PROF_MC].cr = cr;
+    if(sync >= 0)           g_prof[PROF_MC].sync = (uint8_t)sync;
+    if(g_active == PROF_MC) apply_profile(PROF_MC);   /* take effect now */
+}
+
+/* one-line schedule/diagnostic summary for the serial console */
+extern "C" int lz_backend_tdm_info(char *buf, int n)
+{
+    const char *mode = (g_net_mt && g_net_mc) ? "SPLIT (round-robin)"
+                     : g_net_mt ? "Meshtastic 100%"
+                     : g_net_mc ? "MeshCore 100%" : "idle";
+    const rf_prof_t *a = &g_prof[g_active];
+    uint32_t rem = (g_slot_until && millis() < g_slot_until) ? g_slot_until - millis() : 0;
+    return snprintf(buf, n,
+        "mode: %s\n"
+        "active: %s  %.3f MHz  BW %.1f  SF%d  CR4/%d  (slot %lums left)\n"
+        "Meshtastic: %.3f MHz BW%.0f SF%d   rx %lu\n"
+        "MeshCore:   %.3f MHz BW%.1f SF%d   rx %lu\n"
+        "switches: %lu",
+        mode, g_active == PROF_MT ? "Meshtastic" : "MeshCore",
+        (double)a->freq, (double)a->bw, a->sf, a->cr, (unsigned long)rem,
+        (double)g_prof[PROF_MT].freq, (double)g_prof[PROF_MT].bw, g_prof[PROF_MT].sf, (unsigned long)g_rx_mt,
+        (double)g_prof[PROF_MC].freq, (double)g_prof[PROF_MC].bw, g_prof[PROF_MC].sf, (unsigned long)g_rx_mc,
+        (unsigned long)g_switches);
 }
 
 #endif /* LZ_TARGET_TDECK */
