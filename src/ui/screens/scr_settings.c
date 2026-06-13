@@ -65,7 +65,7 @@ static void settings_activate(int f)
         case 7: return;                            /* slider: left/right adjusts */
         case 8: cycle(&S.settings.kb_light, 3); break;
         case 9: cycle(&S.settings.timeout, 5); break;
-        case 10: cycle(&S.settings.tz_idx, TZ_COUNT); lz_svc_set_tz(TZ[S.settings.tz_idx].off_min); break;
+        case 10: lz_go(LZ_V_TZPICK); S.focus = S.settings.tz_idx; lz_rebuild(); return;
         case 11: lz_settime_enter(); lz_go(LZ_V_SETTIME); return;
         case 12: S.settings.save = !S.settings.save; break;
         case 13: lz_go(LZ_V_SYSTEM); return;
@@ -474,6 +474,45 @@ void lz_scr_system(lv_obj_t *root)
     /* refresh once a second so uptime + live stats keep counting on this page */
     lv_timer_t *tm = lv_timer_create(system_refresh_cb, 1000, NULL);
     lv_obj_add_event_cb(body, system_timer_del_cb, LV_EVENT_DELETE, tm);
+}
+
+/* ===== Timezone picker (scrollable list) ===== */
+
+static void tzpick_activate(int idx)
+{
+    if(idx < 0 || idx >= TZ_COUNT) return;
+    S.settings.tz_idx = idx;
+    lz_svc_set_tz(TZ[idx].off_min);
+    lz_back();
+}
+
+void lz_scr_tzpick(lv_obj_t *root)
+{
+    lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
+    lz_navbar(root, "Time zone", NULL);
+
+    lv_obj_t *body = lz_vflex(root);
+    lv_obj_set_style_pad_top(body, 5, 0);
+    lv_obj_set_style_pad_hor(body, 7, 0);
+    lv_obj_set_style_pad_bottom(body, 8, 0);
+    lv_obj_set_style_pad_row(body, 3, 0);
+    lz_nav_set_scroll(body);
+
+    for(int i = 0; i < TZ_COUNT; i++) {
+        bool sel = (i == S.settings.tz_idx);
+        lv_obj_t *row = lz_row(body, i == S.focus);
+        lv_obj_set_style_radius(row, 10, 0);
+        lv_obj_t *nm = lz_text(row, TZ[i].name, LZ_F_BODY, sel ? LZ_MINT : LZ_TEXT);
+        lv_obj_set_flex_grow(nm, 1);
+        int off = TZ[i].off_min;
+        char ob[12];
+        if(off == 0) snprintf(ob, sizeof ob, "UTC");
+        else snprintf(ob, sizeof ob, "UTC%+d:%02d", off / 60, (off < 0 ? -off : off) % 60);
+        lz_text(row, ob, LZ_F_SMALL, LZ_TEXT_VALUE);
+        if(sel) lz_dot(row, 7, LZ_MINT);   /* current selection marker */
+        lz_nav_track(row, i);
+    }
+    lz_nav_set(1, TZ_COUNT, tzpick_activate);
 }
 
 /* ===== Manual set-time editor ===== */

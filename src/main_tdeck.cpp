@@ -436,7 +436,7 @@ void loop()
      * flick (many pulses at once) is a deliberate back gesture */
     /* vertical is responsive; horizontal has a bigger deadzone so left/right
      * (tab switch / back / column move) isn't twitchy */
-    static const int STEP_V = 2, STEP_H = 4;
+    static const int STEP_V = 2, STEP_H = 3;
     bool input = false;
     if(tb_up >= STEP_V)    { tb_up = 0;    lz_ui_key(LZ_K_UP, 0);    input = true; }
     if(tb_down >= STEP_V)  { tb_down = 0;  lz_ui_key(LZ_K_DOWN, 0);  input = true; }

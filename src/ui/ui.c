@@ -169,6 +169,7 @@ void lz_rebuild(void)
         case LZ_V_FILES:      lz_scr_files(g_root); break;
         case LZ_V_WIFI:       lz_scr_wifi(g_root); break;
         case LZ_V_SETTIME:    lz_scr_settime(g_root); break;
+        case LZ_V_TZPICK:     lz_scr_tzpick(g_root); break;
         default: break;
     }
     if(g_focus_obj && g_scroll) {

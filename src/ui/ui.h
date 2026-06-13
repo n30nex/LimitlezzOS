@@ -23,7 +23,7 @@ typedef enum {
     LZ_V_ONBOARD, LZ_V_LOCK, LZ_V_HOME, LZ_V_MESSAGES, LZ_V_CONVO,
     LZ_V_MESHTASTIC, LZ_V_MESHCORE, LZ_V_APPSTORE,
     LZ_V_CONTACTS, LZ_V_CONTACT, LZ_V_SETTINGS,
-    LZ_V_SYSTEM, LZ_V_TERMINAL, LZ_V_FILES, LZ_V_WIFI, LZ_V_SETTIME,
+    LZ_V_SYSTEM, LZ_V_TERMINAL, LZ_V_FILES, LZ_V_WIFI, LZ_V_SETTIME, LZ_V_TZPICK,
     LZ_V_COUNT
 } lz_view_t;
 
@@ -123,6 +123,7 @@ void lz_scr_files(lv_obj_t *root);
 void lz_scr_wifi(lv_obj_t *root);
 void lz_scr_settime(lv_obj_t *root);
 int  lz_tz_offset(int idx);             /* minutes offset for a timezone index */
+void lz_scr_tzpick(lv_obj_t *root);     /* timezone picker list */
 void lz_settime_enter(void);            /* load current clock into the editor */
 void lz_settime_key(lz_key_t k, char c);
 

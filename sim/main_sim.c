@@ -310,6 +310,11 @@ static void shots(const char *dir)
     snprintf(path, sizeof path, "%s/34-settings-time.bmp", dir);
     write_bmp(path); printf("wrote %s\n", path);
 
+    /* timezone picker list */
+    S.view = LZ_V_TZPICK; S.focus = 0; lz_rebuild(); pump(40);
+    snprintf(path, sizeof path, "%s/36-tz-picker.bmp", dir);
+    write_bmp(path); printf("wrote %s\n", path);
+
     /* contact detail (Add button icon) */
     { lz_node_rt *a = lz_svc_node_by_name("Base-01");
       if(a) { S.contact_sel = a; S.view = LZ_V_CONTACT; S.focus = 0; lz_rebuild(); pump(40);
