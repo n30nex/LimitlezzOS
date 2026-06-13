@@ -37,9 +37,15 @@ void        lz_wifi_scan(void);
 int         lz_wifi_results(const lz_wifi_net **out);
 bool        lz_wifi_is_secure(const char *ssid);
 void        lz_wifi_connect(const char *ssid, const char *pass);
-void        lz_wifi_forget(void);
+void        lz_wifi_disconnect(void);           /* drop link, keep saved creds */
+void        lz_wifi_forget(void);               /* clear saved creds + disconnect */
 const char *lz_wifi_connected(void);            /* connected SSID, or NULL */
 int         lz_wifi_status(void);
+/* saved network + auto-connect */
+const char *lz_wifi_saved_ssid(void);           /* remembered SSID, or NULL */
+bool        lz_wifi_is_saved(const char *ssid);
+bool        lz_wifi_autoconnect(void);
+void        lz_wifi_set_autoconnect(bool on);
 
 #ifdef __cplusplus
 }

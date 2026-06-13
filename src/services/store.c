@@ -219,6 +219,43 @@ bool lz_store_load_identity(char *longn, int ln, char *shortn, int sn)
     return ok;
 }
 
+/* ---- saved Wi-Fi (one network: ssid|password|autoconnect) ---- */
+
+void lz_store_save_wifi(const char *ssid, const char *pass, int autoconnect)
+{
+    if(!g_persist) return;
+    char path[128];
+    path_for(path, sizeof path, "wifi.cfg");
+    FILE *f = fopen(path, "w");
+    if(!f) return;
+    fprintf(f, "%s|%s|%d\n", ssid ? ssid : "", pass ? pass : "", autoconnect);
+    fclose(f);
+}
+
+bool lz_store_load_wifi(char *ssid, int sn, char *pass, int pn, int *autoconnect)
+{
+    if(!g_persist) return false;
+    char path[128];
+    path_for(path, sizeof path, "wifi.cfg");
+    FILE *f = fopen(path, "r");
+    if(!f) return false;
+    char line[160];
+    bool ok = false;
+    if(fgets(line, sizeof line, f)) {
+        line[strcspn(line, "\r\n")] = 0;
+        char *cur = line;
+        char *s = field(&cur), *p = field(&cur), *ac = cur;
+        if(s) {
+            snprintf(ssid, sn, "%s", s);
+            snprintf(pass, pn, "%s", p ? p : "");
+            if(autoconnect) *autoconnect = ac && ac[0] ? atoi(ac) : 1;
+            ok = ssid[0] != 0;
+        }
+    }
+    fclose(f);
+    return ok;
+}
+
 /* ---- node db ---- */
 
 void lz_store_save_nodes(const lz_node_rt *nodes, int n)

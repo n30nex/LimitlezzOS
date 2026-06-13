@@ -273,7 +273,8 @@ static void shots(const char *dir)
     pump(800);                         /* scan completes */
     snprintf(path, sizeof path, "%s/27-wifi-list.bmp", dir);
     write_bmp(path); printf("wrote %s\n", path);
-    lz_ui_key(LZ_K_DOWN, 0);           /* focus first network (Basecamp-2G) */
+    lz_ui_key(LZ_K_DOWN, 0);           /* focus 1: auto-connect toggle */
+    lz_ui_key(LZ_K_DOWN, 0);           /* focus 2: first network (Basecamp-2G) */
     lz_ui_key(LZ_K_ENTER, 0);          /* secured -> password entry */
     for(const char *p = "trailpass"; *p; p++) lz_ui_key(LZ_K_CHAR, *p);
     pump(40);

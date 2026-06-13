@@ -13,17 +13,30 @@ static void wifi_connect_tap(void)
 }
 static void wifi_cancel_tap(void) { S.wifi_pw_mode = false; S.draft[0] = 0; lz_rebuild(); }
 
-/* focus 0 = enable toggle; focus 1.. = network rows */
+/* long-press a saved network to forget it (clears the stored password).
+ * Deferred via lv_async_call so the rebuild doesn't free the row mid-event. */
+static void wifi_forget_async(void *p) { (void)p; lz_wifi_forget(); lz_rebuild(); }
+static void wifi_forget_cb(lv_event_t *e)
+{
+    lv_obj_t *row = lv_event_get_target(e);
+    lv_obj_t *lbl = lv_obj_get_child(row, 0);   /* network rows: child 0 = SSID label */
+    if(lbl && lz_wifi_is_saved(lv_label_get_text(lbl)))
+        lv_async_call(wifi_forget_async, NULL);
+}
+
+/* focus 0 = Wi-Fi toggle; 1 = auto-connect toggle; 2.. = network rows */
 static void wifi_activate(int idx)
 {
     if(idx == 0) { wifi_toggle(); return; }
+    if(idx == 1) { lz_wifi_set_autoconnect(!lz_wifi_autoconnect()); lz_rebuild(); return; }
     const lz_wifi_net *nets;
     int n = lz_wifi_results(&nets);
-    int ni = idx - 1;
+    int ni = idx - 2;
     if(ni < 0 || ni >= n) return;
     const char *ssid = nets[ni].ssid;
     const char *cur = lz_wifi_connected();
-    if(cur && strcmp(cur, ssid) == 0) { lz_wifi_forget(); lz_rebuild(); return; }  /* disconnect */
+    if(cur && strcmp(cur, ssid) == 0) { lz_wifi_disconnect(); lz_rebuild(); return; } /* drop, keep saved */
+    if(lz_wifi_is_saved(ssid)) { lz_wifi_connect(ssid, ""); lz_rebuild(); return; }   /* rejoin w/ stored pw */
     if(nets[ni].secure) {
         S.wifi_pw_mode = true;
         snprintf(S.wifi_pw_ssid, sizeof S.wifi_pw_ssid, "%s", ssid);
@@ -145,11 +158,23 @@ void lz_scr_wifi(lv_obj_t *root)
     lz_toggle(trow, on, LZ_TOGGLE_ON);
     lz_nav_track(trow, 0);
 
+    /* auto-connect toggle (focus 1) — rejoin the saved network on its own */
+    bool ac = lz_wifi_autoconnect();
+    lv_obj_t *arow = lz_row(body, S.focus == 1);
+    lz_icon(arow, LZ_I_BOLT, &lz_icons_18, ac ? LZ_MINT : lv_color_hex(0x868F99));
+    lv_obj_t *al = lz_text(arow, "Auto-connect", LZ_F_BODY, LZ_TEXT);
+    lv_obj_set_flex_grow(al, 1);
+    lz_toggle(arow, ac, LZ_TOGGLE_ON);
+    lz_nav_track(arow, 1);
+
     if(!on) {
-        lv_obj_t *h = lz_text(body, "Turn on Wi-Fi to find networks.",
-                              LZ_F_SMALL, LZ_TEXT_3);
+        const char *sv = lz_wifi_saved_ssid();
+        char msg[80];
+        if(sv) snprintf(msg, sizeof msg, "Saved: %s. Turn on Wi-Fi to connect.", sv);
+        else   snprintf(msg, sizeof msg, "Turn on Wi-Fi to find networks.");
+        lv_obj_t *h = lz_text(body, msg, LZ_F_SMALL, LZ_TEXT_3);
         lv_obj_set_style_pad_top(h, 10, 0);
-        lz_nav_set(1, 1, wifi_activate);
+        lz_nav_set(1, 2, wifi_activate);
         return;
     }
 
@@ -169,20 +194,31 @@ void lz_scr_wifi(lv_obj_t *root)
     const lz_wifi_net *nets;
     int n = lz_wifi_results(&nets);
     const char *cur = lz_wifi_connected();
+    bool any_saved = false;
     for(int i = 0; i < n; i++) {
-        lv_obj_t *row = lz_row(body, S.focus == i + 1);
+        lv_obj_t *row = lz_row(body, S.focus == i + 2);
         bool isconn = cur && strcmp(cur, nets[i].ssid) == 0;
+        bool saved  = lz_wifi_is_saved(nets[i].ssid);
 
         lv_obj_t *nm = lz_text(row, nets[i].ssid, LZ_F_BODY, LZ_TEXT);
         lv_obj_set_flex_grow(nm, 1);
         lv_label_set_long_mode(nm, LV_LABEL_LONG_DOT);
 
-        if(isconn) lz_text(row, "Connected", LZ_F_SMALL, LZ_GREEN_TXT);
+        if(isconn)            lz_text(row, "Connected", LZ_F_SMALL, LZ_GREEN_TXT);
+        else if(saved)        lz_text(row, "Saved", LZ_F_SMALL, LZ_TEXT_3);
         /* lock glyph lives in the 16px filled font, not the 14px set (was tofu) */
         if(nets[i].secure) lz_icon(row, LZ_I_LOCK, &lz_icons_16f, lv_color_hex(0x868F99));
         signal_bars(row, nets[i].rssi);
-        lz_nav_track(row, i + 1);
+        /* long-press a remembered network to forget it (then re-tap to set a new password) */
+        if(saved) { lv_obj_add_event_cb(row, wifi_forget_cb, LV_EVENT_LONG_PRESSED, NULL); any_saved = true; }
+        lz_nav_track(row, i + 2);
     }
 
-    lz_nav_set(1, n + 1, wifi_activate);
+    if(any_saved) {
+        lv_obj_t *hint = lz_text(body, "Hold a saved network to forget it.", LZ_F_SMALL, LZ_TEXT_3);
+        lv_obj_set_style_pad_top(hint, 6, 0);
+        lv_obj_set_style_pad_left(hint, 4, 0);
+    }
+
+    lz_nav_set(1, n + 2, wifi_activate);
 }
