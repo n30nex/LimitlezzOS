@@ -200,6 +200,14 @@ static void shots(const char *dir)
     tap_at(160, 70);                  /* MeshCore filter chip */
     snprintf(path, sizeof path, "%s/24-touch-channels-mc.bmp", dir);
     write_bmp(path); printf("wrote %s\n", path);
+
+    /* regression: focus moving below the fold must autoscroll (settings
+     * rows are nested in group cards -> needs recursive scroll-to-view) */
+    S.view = LZ_V_SETTINGS; S.focus = 0; lz_rebuild();
+    for(int i = 0; i < 7; i++) lz_ui_key(LZ_K_DOWN, 0);   /* down to Brightness */
+    pump(60);
+    snprintf(path, sizeof path, "%s/25-settings-autoscroll.bmp", dir);
+    write_bmp(path); printf("wrote %s\n", path);
 }
 
 int main(int argc, char **argv)

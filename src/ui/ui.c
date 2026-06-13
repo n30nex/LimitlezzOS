@@ -105,7 +105,9 @@ void lz_rebuild(void)
     }
     if(g_focus_obj && g_scroll) {
         lv_obj_update_layout(g_scroll);
-        lv_obj_scroll_to_view(g_focus_obj, LV_ANIM_OFF);
+        /* recursive: settings rows sit inside group cards, so the scrollable
+         * body is the grandparent, not the direct parent */
+        lv_obj_scroll_to_view_recursive(g_focus_obj, LV_ANIM_OFF);
     } else if(S.view == LZ_V_CONVO && g_scroll) {
         /* thread opens (and stays) pinned to the latest message */
         lv_obj_update_layout(g_scroll);
@@ -379,38 +381,46 @@ void lz_status_bar(lv_obj_t *parent)
     lv_obj_t *nodes = lz_text(bar, "7 nodes", LZ_F_MONO, lv_color_hex(0xAEB6BF));
     lv_obj_align(nodes, LV_ALIGN_LEFT_MID, 27, 0);
 
-    /* battery: outline + fill */
-    lv_obj_t *batt = lz_box(bar);
+    /* right cluster: [signal bars] [clock] [battery] laid out by flex so
+     * nothing can overlap */
+    lv_obj_t *right = lz_box(bar);
+    lv_obj_set_size(right, LV_SIZE_CONTENT, LZ_STATUSBAR_H - 1);
+    lv_obj_set_flex_flow(right, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(right, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(right, 7, 0);
+    lv_obj_align(right, LV_ALIGN_RIGHT_MID, -9, 0);
+
+    lv_obj_t *bars = lz_box(right);
+    lv_obj_set_size(bars, 4 * 3 + 3 * 2, 11);
+    static const int hs[4] = { 4, 6, 8, 11 };
+    for(int i = 0; i < 4; i++) {
+        lv_obj_t *b = lz_box(bars);
+        lv_obj_set_size(b, 3, hs[i]);
+        lv_obj_set_style_radius(b, 1, 0);
+        lv_obj_set_style_bg_color(b, i < 3 ? mint : lv_color_hex(0x3D434B), 0);
+        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+        lv_obj_align(b, LV_ALIGN_BOTTOM_LEFT, i * 5, 0);
+    }
+
+    lz_text(right, "14:23", LZ_F_MONO, lv_color_hex(0xCDD3DA));
+
+    lv_obj_t *bwrap = lz_box(right);
+    lv_obj_set_size(bwrap, 21, 9);
+    lv_obj_t *batt = lz_box(bwrap);
     lv_obj_set_size(batt, 18, 9);
     lv_obj_set_style_radius(batt, 2, 0);
     lv_obj_set_style_border_width(batt, 1, 0);
     lv_obj_set_style_border_color(batt, lv_color_hex(0x767D86), 0);
-    lv_obj_align(batt, LV_ALIGN_RIGHT_MID, -12, 0);
     lv_obj_t *fill = lz_box(batt);
     lv_obj_set_size(fill, 12, 5);
     lv_obj_set_style_bg_color(fill, mint, 0);
     lv_obj_set_style_bg_opa(fill, LV_OPA_COVER, 0);
     lv_obj_align(fill, LV_ALIGN_LEFT_MID, 1, 0);
-    lv_obj_t *nub = lz_box(bar);
+    lv_obj_t *nub = lz_box(bwrap);
     lv_obj_set_size(nub, 2, 4);
     lv_obj_set_style_bg_color(nub, lv_color_hex(0x767D86), 0);
     lv_obj_set_style_bg_opa(nub, LV_OPA_COVER, 0);
-    lv_obj_align(nub, LV_ALIGN_RIGHT_MID, -9, 0);
-
-    lv_obj_t *clock = lz_text(bar, "14:23", LZ_F_MONO, lv_color_hex(0xCDD3DA));
-    lv_obj_align(clock, LV_ALIGN_RIGHT_MID, -38, 0);
-
-    /* signal bars */
-    static const int hs[4] = { 4, 6, 8, 11 };
-    for(int i = 0; i < 4; i++) {
-        lv_obj_t *b = lz_box(bar);
-        lv_obj_set_size(b, 3, hs[i]);
-        lv_obj_set_style_radius(b, 1, 0);
-        lv_obj_set_style_bg_color(b, i < 3 ? mint : lv_color_hex(0x3D434B), 0);
-        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-        lv_obj_align(b, LV_ALIGN_RIGHT_MID, -(85 - i * 5), (11 - hs[i]) / 2 + 0);
-        lv_obj_align(b, LV_ALIGN_BOTTOM_RIGHT, -(85 - i * 5), -5);
-    }
+    lv_obj_align(nub, LV_ALIGN_RIGHT_MID, 0, 0);
 }
 
 bool lz_settings_slider_focused(void)
