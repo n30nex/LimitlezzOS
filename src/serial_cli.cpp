@@ -19,6 +19,9 @@
 extern "C" void lz_backend_set_networks(bool mt, bool mc) __attribute__((weak));
 extern "C" int  lz_backend_tdm_info(char *buf, int n)     __attribute__((weak));
 extern "C" void lz_backend_mc_tune(float freq, float bw, int sf, int cr, int sync) __attribute__((weak));
+extern "C" int  lz_backend_mc_id(char *buf, int n)        __attribute__((weak));
+extern "C" bool lz_backend_mc_advert_now(void)            __attribute__((weak));
+extern "C" int  lz_backend_mc_selftest(char *buf, int n)  __attribute__((weak));
 
 static char    g_line[160];
 static uint8_t g_len;
@@ -38,6 +41,9 @@ static void cmd_help(void)
         "  net mt|mc on|off     enable/disable a network (drives TDM)\n"
         "  rf                   show radio profile + TDM schedule\n"
         "  rf mc <f> <bw> <sf> <cr> [sync]  tune MeshCore RF (e.g. rf mc 910.525 62.5 7 5)\n"
+        "  mc                   show our MeshCore identity (pubkey)\n"
+        "  mc advert            broadcast a MeshCore self-advert now\n"
+        "  mc test              build+verify our advert (proves nodes will accept it)\n"
         "  nodes                list heard nodes\n"
         "  send <text>          broadcast text on the channel\n"
         "  stats                radio TX/RX + airtime utilization\n"
@@ -129,6 +135,29 @@ static void cmd_rf(char *args)
     }
 }
 
+static void cmd_mc(char *args)
+{
+    if(args && strcmp(args, "advert") == 0) {
+        if(lz_backend_mc_advert_now && lz_backend_mc_advert_now())
+            Serial.println("[ok] MeshCore self-advert sent");
+        else
+            Serial.println("[err] advert not sent (radio off?)");
+        return;
+    }
+    if(args && strcmp(args, "test") == 0) {
+        if(lz_backend_mc_selftest) { char b[160]; lz_backend_mc_selftest(b, sizeof b); Serial.println(b); }
+        else Serial.println("[--] not present");
+        return;
+    }
+    if(lz_backend_mc_id) {
+        char buf[100]; lz_backend_mc_id(buf, sizeof buf);
+        Serial.println(buf);
+        Serial.println("(use 'mc advert' to broadcast a self-advert now)");
+    } else {
+        Serial.println("[--] MeshCore not present in this build");
+    }
+}
+
 static void cmd_nodes(void)
 {
     const lz_node_rt *nodes;
@@ -207,6 +236,7 @@ static void dispatch(char *line)
     else if(!strcmp(line, "tz"))      cmd_tz(args);
     else if(!strcmp(line, "net"))     cmd_net(args);
     else if(!strcmp(line, "rf"))      cmd_rf(args);
+    else if(!strcmp(line, "mc"))      cmd_mc(args);
     else if(!strcmp(line, "nodes"))   cmd_nodes();
     else if(!strcmp(line, "send"))    cmd_send(args);
     else if(!strcmp(line, "stats"))   cmd_stats();

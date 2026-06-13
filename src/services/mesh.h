@@ -106,6 +106,7 @@ void lz_svc_set_node_num(uint32_t num);                   /* real node id (from 
 /* ---- time ---- */
 void lz_svc_set_time(uint32_t epoch);                     /* set UTC (e.g. NTP) */
 bool lz_svc_time_synced(void);
+uint32_t lz_svc_epoch(void);                              /* current UTC epoch seconds */
 void lz_svc_set_tz(int offset_min);                       /* fixed offset, no DST (legacy) */
 int  lz_svc_tz(void);                                     /* effective offset incl. DST, min */
 /* DST-aware zones: a standard offset + a daylight rule. now_local() and the

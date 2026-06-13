@@ -16,9 +16,14 @@
 
 #include <Arduino.h>
 #include <RadioLib.h>
+#include <Ed25519.h>            /* rweather/Crypto — the lib MeshCore verifies adverts with */
 #include "services/mesh.h"
 #include "services/mtproto.h"
 #include "services/mcproto.h"
+
+/* MeshCore identity persistence (store.c) */
+extern "C" void lz_store_save_mc_key(const uint8_t *prv32);
+extern "C" bool lz_store_load_mc_key(uint8_t *prv32);
 
 /* ---- T-Deck SX1262 pin map (variant.h) ---- */
 #define PIN_LORA_NSS    9
@@ -299,6 +304,76 @@ static void broadcast_nodeinfo(void)
     tx_frame(frame, MT_HEADER_LEN + pn);
 }
 
+/* ---- MeshCore self-advert: a signed ADVERT so other nodes discover us ----
+ * Identity is a standard Ed25519 keypair (rweather/Crypto). The 32-byte private
+ * seed is persisted; the 32-byte public key is our MeshCore address and goes in
+ * the advert. A real MeshCore node verifies the advert with Ed25519::verify over
+ * pubkey||timestamp||app_data — the same library + algorithm, so it accepts us. */
+#define MAX_ADVERT_DATA_SIZE_LZ 32     /* MeshCore MAX_ADVERT_DATA_SIZE */
+static uint8_t  g_mc_prv[32], g_mc_pub[32];
+static bool     g_mc_id_ok;
+static uint32_t g_last_mc_advert;
+
+static void mc_identity_init(void)
+{
+    if(!lz_store_load_mc_key(g_mc_prv)) {
+        do {
+            for(int i = 0; i < 32; i++) g_mc_prv[i] = (uint8_t)(esp_random() & 0xFF);
+            Ed25519::derivePublicKey(g_mc_pub, g_mc_prv);
+        } while(g_mc_pub[0] == 0x00 || g_mc_pub[0] == 0xFF);  /* MeshCore rejects these */
+        lz_store_save_mc_key(g_mc_prv);
+        Serial.printf("[ok] MeshCore identity generated: %02x%02x%02x%02x...\n",
+                      g_mc_pub[0], g_mc_pub[1], g_mc_pub[2], g_mc_pub[3]);
+    } else {
+        Ed25519::derivePublicKey(g_mc_pub, g_mc_prv);
+    }
+    g_mc_id_ok = true;
+}
+
+/* assemble a flood ADVERT into `frame`; returns length or -1 */
+static int build_mc_advert(uint8_t *frame, int cap)
+{
+    if(!g_mc_id_ok) return -1;
+    const lz_identity_t *id = lz_svc_identity();
+
+    /* app_data: flags (Chat + has-name) then the node name */
+    uint8_t app[MAX_ADVERT_DATA_SIZE_LZ]; int al = 0;
+    app[al++] = MC_ADV_TYPE_CHAT | 0x80;          /* 0x81: Chat node, name present */
+    for(int i = 0; id->long_name[i] && al < MAX_ADVERT_DATA_SIZE_LZ; i++)
+        app[al++] = (uint8_t)id->long_name[i];
+
+    uint32_t ts = lz_svc_epoch();
+
+    /* signed message = pubkey || timestamp || app_data */
+    uint8_t msg[32 + 4 + MAX_ADVERT_DATA_SIZE_LZ]; int ml = 0;
+    memcpy(msg + ml, g_mc_pub, 32); ml += 32;
+    memcpy(msg + ml, &ts, 4);       ml += 4;
+    memcpy(msg + ml, app, al);      ml += al;
+    uint8_t sig[64];
+    Ed25519::sign(sig, g_mc_prv, g_mc_pub, msg, ml);
+
+    /* frame: header(FLOOD|ADVERT) path_len=0  payload[pubkey ts sig app] */
+    int fl = 0;
+    frame[fl++] = (MC_PAYLOAD_ADVERT << MC_TYPE_SHIFT) | MC_ROUTE_FLOOD;  /* 0x11 */
+    frame[fl++] = 0;                              /* path_len = 0 (flood builds it) */
+    if(fl + 32 + 4 + 64 + al > cap) return -1;
+    memcpy(frame + fl, g_mc_pub, 32); fl += 32;
+    memcpy(frame + fl, &ts, 4);       fl += 4;
+    memcpy(frame + fl, sig, 64);      fl += 64;
+    memcpy(frame + fl, app, al);      fl += al;
+    return fl;
+}
+
+/* transmit one advert (must be tuned to the MeshCore profile) */
+static bool broadcast_mc_advert(void)
+{
+    if(!g_mc_id_ok || g_active != PROF_MC) return false;
+    uint8_t frame[160];
+    int n = build_mc_advert(frame, sizeof frame);
+    if(n <= 0) return false;
+    return tx_frame(frame, n);
+}
+
 /* ================= backend contract ================= */
 
 void lz_backend_init(void)
@@ -318,6 +393,7 @@ void lz_backend_init(void)
     radio.setDio1Action(on_dio1);
     radio.startReceive();
     g_ok = true;
+    mc_identity_init();                  /* prepare our MeshCore Ed25519 identity */
 }
 
 bool lz_backend_ok(void) { return g_ok; }
@@ -357,6 +433,16 @@ void lz_backend_loop(void)
                                 : (now - g_last_nodeinfo > 300000)) {
             g_last_nodeinfo = now;
             broadcast_nodeinfo();
+        }
+    }
+
+    /* advertise ourselves on MeshCore so other nodes discover us — only while
+     * tuned to the MeshCore profile; first shortly after boot, then ~every 4 min */
+    if(g_net_mc && g_active == PROF_MC) {
+        if(g_last_mc_advert == 0 ? (now - g_boot_ms > 6000)
+                                 : (now - g_last_mc_advert > 240000)) {
+            g_last_mc_advert = now;
+            broadcast_mc_advert();
         }
     }
 }
@@ -435,6 +521,53 @@ extern "C" void lz_backend_mc_tune(float freq, float bw, int sf, int cr, int syn
     if(cr >= 5 && cr <= 8)  g_prof[PROF_MC].cr = cr;
     if(sync >= 0)           g_prof[PROF_MC].sync = (uint8_t)sync;
     if(g_active == PROF_MC) apply_profile(PROF_MC);   /* take effect now */
+}
+
+/* MeshCore identity (pubkey hex) for the serial console */
+extern "C" int lz_backend_mc_id(char *buf, int n)
+{
+    if(!g_mc_id_ok) return snprintf(buf, n, "(no MeshCore identity)");
+    int k = snprintf(buf, n, "MeshCore pubkey: ");
+    for(int i = 0; i < 32 && k < n - 2; i++) k += snprintf(buf + k, n - k, "%02x", g_mc_pub[i]);
+    return k;
+}
+
+/* self-test: build our advert, parse + Ed25519-verify it exactly as a remote
+ * MeshCore node would. VALID here == a real node will accept our advert. */
+extern "C" int lz_backend_mc_selftest(char *buf, int n)
+{
+    if(!g_mc_id_ok) return snprintf(buf, n, "no MeshCore identity");
+    uint8_t frame[160];
+    int fl = build_mc_advert(frame, sizeof frame);
+    if(fl <= 0) return snprintf(buf, n, "build failed");
+
+    mc_pkt_t p;
+    if(!mc_parse(frame, fl, &p)) return snprintf(buf, n, "parse failed");
+    mc_advert_t a;
+    if(!mc_advert_decode(&p, &a)) return snprintf(buf, n, "decode failed (type=%d)", p.payload_type);
+
+    const uint8_t *pk = p.payload, *ts = p.payload + 32, *sig = p.payload + 36, *app = p.payload + 100;
+    int app_len = p.payload_len - 100;
+    uint8_t msg[32 + 4 + MAX_ADVERT_DATA_SIZE_LZ]; int ml = 0;
+    memcpy(msg + ml, pk, 32);     ml += 32;
+    memcpy(msg + ml, ts, 4);      ml += 4;
+    memcpy(msg + ml, app, app_len); ml += app_len;
+    bool ok = Ed25519::verify(sig, pk, msg, ml);
+
+    return snprintf(buf, n, "advert %d bytes | type=%s route=FLOOD | name='%s' | Ed25519 sig=%s",
+                    fl, mc_type_name(p.payload_type), a.has_name ? a.name : "", ok ? "VALID" : "INVALID");
+}
+
+/* force-send one self-advert now (retunes to MeshCore briefly if needed) */
+extern "C" bool lz_backend_mc_advert_now(void)
+{
+    if(!g_ok || !g_mc_id_ok) return false;
+    int prev = g_active;
+    if(g_active != PROF_MC) apply_profile(PROF_MC);
+    bool ok = broadcast_mc_advert();
+    g_last_mc_advert = millis();
+    if(prev != PROF_MC && !(g_net_mt && g_net_mc)) apply_profile(prev);  /* restore if not round-robin */
+    return ok;
 }
 
 /* one-line schedule/diagnostic summary for the serial console */

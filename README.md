@@ -140,10 +140,13 @@ mesh.
   multiplexed with Meshtastic on the one SX1262: the radio listens on one
   profile, retunes, listens on the other, round-robin. Both networks on → 50/50
   airtime split (the scheduler the airtime bar visualizes); only one on → that
-  profile gets the radio 100% with no switching. MeshCore ADVERTs (signed, not
-  encrypted) are decoded to learn nodes by name + role (Chat/Repeater/Room/
-  Sensor). MeshCore US profile: 910.525 MHz / 62.5 kHz / SF7 / CR4-5 / sync
-  PRIVATE.
+  profile gets the radio 100% with no switching. Discovery works both ways:
+  inbound ADVERTs (signed, unencrypted) are decoded to learn nodes by name +
+  role (Chat/Repeater/Room/Sensor), and we **broadcast our own Ed25519-signed
+  self-advert** so other MeshCore nodes discover us (the device holds a
+  persistent MeshCore keypair; signatures verify under the same rweather/Crypto
+  Ed25519 MeshCore uses). MeshCore US profile: 910.525 MHz / 62.5 kHz / SF7 /
+  CR4-5 / sync PRIVATE.
 - **Real status everywhere** — the status bar clock, battery %, and charge
   state are live; identity, node table, and message history persist across
   reboots; nothing on screen is hard-coded demo data on hardware.

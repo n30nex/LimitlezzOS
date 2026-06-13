@@ -213,6 +213,7 @@ void lz_svc_set_time(uint32_t epoch)              /* UTC (e.g. from NTP) */
     g_time_synced = true;
 }
 bool lz_svc_time_synced(void) { return g_time_synced; }
+uint32_t lz_svc_epoch(void) { return now_epoch(); }   /* current UTC, for advert timestamps */
 
 void lz_svc_set_tz(int offset_min)               /* fixed offset, no DST */
 {
