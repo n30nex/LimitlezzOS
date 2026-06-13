@@ -35,13 +35,26 @@ static void        (*g_dirty)(void);
 /* placeholder until onboarding sets the real name (and MAC sets the num) */
 static lz_identity_t g_id = { 0x7c3af1d0, "!7c3af1d0", "Node", "NODE" };
 static bool          g_have_identity;            /* false until onboarding done */
-static uint32_t      g_epoch_base = 1718200980;  /* maps tick 0 -> a wall clock */
+static uint32_t      g_epoch_base = 1718200980;  /* UTC at uptime 0 */
+static int           g_tz_min;                   /* timezone offset, minutes */
 
 /* ---------- helpers ---------- */
 
-static uint32_t now_epoch(void)
+static uint32_t now_epoch(void)                  /* UTC */
 {
     return g_epoch_base + lz_tick_ms() / 1000;
+}
+static uint32_t now_local(void) { return now_epoch() + g_tz_min * 60; }
+
+/* days since 1970-01-01 for a civil date (Howard Hinnant's algorithm) */
+static long days_from_civil(int y, int m, int d)
+{
+    y -= m <= 2;
+    long era = (y >= 0 ? y : y - 399) / 400;
+    int yoe = (int)(y - era * 400);
+    int doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097L + doe - 719468;
 }
 
 const lz_identity_t *lz_svc_identity(void) { return &g_id; }
@@ -66,7 +79,7 @@ const char *lz_fmt_ago(uint32_t ts, char *buf, size_t n)
 
 const char *lz_fmt_hm(uint32_t ts, char *buf, size_t n)
 {
-    uint32_t secs = ts % 86400;
+    uint32_t secs = (ts + g_tz_min * 60) % 86400;   /* stored UTC -> local */
     snprintf(buf, n, "%02u:%02u", (unsigned)(secs / 3600), (unsigned)((secs % 3600) / 60));
     return buf;
 }
@@ -152,21 +165,39 @@ void lz_svc_set_node_num(uint32_t num)
 
 /* ---- time ---- */
 static bool g_time_synced;
-void lz_svc_set_time(uint32_t epoch)
+void lz_svc_set_time(uint32_t epoch)              /* UTC (e.g. from NTP) */
 {
     g_epoch_base = epoch - lz_tick_ms() / 1000;
     g_time_synced = true;
 }
 bool lz_svc_time_synced(void) { return g_time_synced; }
+void lz_svc_set_tz(int offset_min) { g_tz_min = offset_min; }
+int  lz_svc_tz(void) { return g_tz_min; }
+
+/* manual set: the user enters LOCAL wall-clock; store as UTC */
+void lz_svc_set_clock(int y, int mo, int d, int h, int mi)
+{
+    uint32_t local = (uint32_t)(days_from_civil(y, mo, d) * 86400L + h * 3600 + mi * 60);
+    lz_svc_set_time(local - g_tz_min * 60);
+}
+void lz_svc_get_clock(int *y, int *mo, int *d, int *h, int *mi)
+{
+    time_t t = (time_t)now_local();
+    struct tm tmv; gmtime_r(&t, &tmv);
+    *y = tmv.tm_year + 1900; *mo = tmv.tm_mon + 1; *d = tmv.tm_mday;
+    *h = tmv.tm_hour; *mi = tmv.tm_min;
+}
 const char *lz_fmt_now(char *buf, size_t n)
 {
     if(!g_time_synced) { snprintf(buf, n, "--:--"); return buf; }
-    return lz_fmt_hm(now_epoch(), buf, n);
+    uint32_t secs = now_local() % 86400;
+    snprintf(buf, n, "%02u:%02u", (unsigned)(secs / 3600), (unsigned)((secs % 3600) / 60));
+    return buf;
 }
 const char *lz_fmt_date(char *buf, size_t n)
 {
     if(!g_time_synced) { snprintf(buf, n, "Set time in Settings"); return buf; }
-    time_t t = (time_t)now_epoch();
+    time_t t = (time_t)now_local();
     struct tm tmv;
     gmtime_r(&t, &tmv);
     strftime(buf, n, "%A, %b %e", &tmv);

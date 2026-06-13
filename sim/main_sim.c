@@ -298,6 +298,23 @@ static void shots(const char *dir)
     pump(60);
     snprintf(path, sizeof path, "%s/32-longfast-convo.bmp", dir);
     write_bmp(path); printf("wrote %s\n", path);
+
+    /* manual set-time editor */
+    lz_settime_enter();
+    S.view = LZ_V_SETTIME; lz_rebuild(); pump(40);
+    snprintf(path, sizeof path, "%s/33-set-time.bmp", dir);
+    write_bmp(path); printf("wrote %s\n", path);
+
+    /* settings scrolled to the TIME group */
+    S.view = LZ_V_SETTINGS; S.focus = 10; lz_rebuild(); pump(40);
+    snprintf(path, sizeof path, "%s/34-settings-time.bmp", dir);
+    write_bmp(path); printf("wrote %s\n", path);
+
+    /* contact detail (Add button icon) */
+    { lz_node_rt *a = lz_svc_node_by_name("Base-01");
+      if(a) { S.contact_sel = a; S.view = LZ_V_CONTACT; S.focus = 0; lz_rebuild(); pump(40);
+              snprintf(path, sizeof path, "%s/35-contact-add.bmp", dir);
+              write_bmp(path); printf("wrote %s\n", path); } }
 }
 
 /* Codec round-trip verification — proves header framing, AES-CTR symmetry,

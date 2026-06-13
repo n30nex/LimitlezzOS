@@ -222,6 +222,7 @@ static void backlight_set(int pct)
 }
 
 static bool kb_present;
+static void kb_set_brightness(uint8_t duty);   /* defined below */
 
 /* real system info for the System screen + status bar (no fake 87%) */
 #define BATTERY_PIN     4        /* ADC1 GPIO4, 2:1 divider (Meshtastic T-Deck) */
@@ -389,8 +390,7 @@ void setup()
                   lz_backend_ok() ? "ok" : "FAIL", lz_backend_begin_state());
     Serial.printf("[ok] node id !%08x\n", (unsigned)nodenum);
 
-    pinMode(KB_BL_PIN, OUTPUT);          /* keyboard backlight */
-    digitalWrite(KB_BL_PIN, HIGH);
+    kb_set_brightness(200);              /* keyboard backlight on (via I2C to the C3) */
 
     lz_ui_init(lv_scr_act());            /* applies brightness via backlight_set */
     Serial.println("=== boot complete ===");
@@ -398,15 +398,26 @@ void setup()
 
 static uint32_t g_last_input_ms;     /* for the keyboard-light Auto timeout */
 
+/* The keyboard backlight LED is on the keyboard's ESP32-C3 (its GPIO9), NOT a
+ * main-MCU pin. Control it over I2C: command 0x01 then a 0..255 PWM duty. */
+static void kb_set_brightness(uint8_t duty)
+{
+    Wire.beginTransmission(KEYBOARD_I2C_ADDR);
+    Wire.write(0x01);
+    Wire.write(duty);
+    Wire.endTransmission();
+}
+
 static void kb_backlight_update(void)
 {
-    bool on;
+    int want;
     switch(S.settings.kb_light) {
-        case 1: on = true; break;                                    /* On      */
-        case 2: on = false; break;                                   /* Off     */
-        default: on = (millis() - g_last_input_ms) < KB_BL_TIMEOUT_MS; break; /* Auto */
+        case 1: want = 200; break;                                   /* On      */
+        case 2: want = 0; break;                                     /* Off     */
+        default: want = (millis() - g_last_input_ms) < KB_BL_TIMEOUT_MS ? 200 : 0; break; /* Auto */
     }
-    digitalWrite(KB_BL_PIN, on ? HIGH : LOW);
+    static int last = -1;
+    if(want != last) { last = want; kb_set_brightness((uint8_t)want); }  /* only on change */
 }
 
 static char read_kb(void)
@@ -423,12 +434,14 @@ void loop()
 {
     /* trackball roll: 2 pulses per focus step debounces jitter; a strong left
      * flick (many pulses at once) is a deliberate back gesture */
-    static const int STEP = 2;
+    /* vertical is responsive; horizontal has a bigger deadzone so left/right
+     * (tab switch / back / column move) isn't twitchy */
+    static const int STEP_V = 2, STEP_H = 4;
     bool input = false;
-    if(tb_up >= STEP)    { tb_up = 0;    lz_ui_key(LZ_K_UP, 0);    input = true; }
-    if(tb_down >= STEP)  { tb_down = 0;  lz_ui_key(LZ_K_DOWN, 0);  input = true; }
-    if(tb_left >= STEP)  { tb_left = 0;  lz_ui_key(LZ_K_LEFT, 0);  input = true; }
-    if(tb_right >= STEP) { tb_right = 0; lz_ui_key(LZ_K_RIGHT, 0); input = true; }
+    if(tb_up >= STEP_V)    { tb_up = 0;    lz_ui_key(LZ_K_UP, 0);    input = true; }
+    if(tb_down >= STEP_V)  { tb_down = 0;  lz_ui_key(LZ_K_DOWN, 0);  input = true; }
+    if(tb_left >= STEP_H)  { tb_left = 0;  lz_ui_key(LZ_K_LEFT, 0);  input = true; }
+    if(tb_right >= STEP_H) { tb_right = 0; lz_ui_key(LZ_K_RIGHT, 0); input = true; }
 
     static bool click_was = false;
     bool click = digitalRead(TRACKBALL_CLICK) == LOW;

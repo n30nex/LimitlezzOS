@@ -14,6 +14,19 @@ static const uint32_t TIMEOUT_MS[5] = { 15000, 30000, 60000, 300000, 0 };
 
 void lz_set_backlight_cb(void (*fn)(int pct)) { g_backlight_cb = fn; }
 
+/* the left-roll back gesture requires a firm/repeated left (two within ~550ms)
+ * so a gentle accidental nudge at an edge doesn't exit the screen */
+static bool confirm_left_back(void)
+{
+    static uint32_t last;
+    static int cnt;
+    uint32_t now = lz_tick_ms();
+    cnt = (now - last < 550) ? cnt + 1 : 1;
+    last = now;
+    if(cnt >= 2) { cnt = 0; return true; }
+    return false;
+}
+
 void lz_apply_brightness(void)
 {
     if(g_backlight_cb && !g_dimmed) g_backlight_cb(S.settings.bright);
@@ -62,13 +75,14 @@ void lz_ui_init(lv_obj_t *root)
     S.view = lz_svc_needs_onboarding() ? LZ_V_ONBOARD : LZ_V_LOCK;
     S.net_mt = true;
     S.net_mc = LZ_MESHCORE_ENABLED ? true : false;   /* locked off until Stage 2 */
-    S.settings.gps = true;
+    S.settings.gps = false;   /* off by default to save battery (GPS unused in Alpha) */
     S.settings.dark = true;
     S.settings.save = false;
     S.settings.bright = 74;
     S.settings.timeout = 1;   /* 30s */
     S.settings.tx = 3;        /* Max (22 dBm) — matches the radio's init power */
     S.settings.kb_light = 0;  /* Auto */
+    S.settings.tz_idx = 12;   /* UTC+0 */
     g_root = root;
     lv_obj_remove_style_all(root);
     lv_obj_set_size(root, LZ_W, LZ_H);
@@ -153,6 +167,7 @@ void lz_rebuild(void)
         case LZ_V_TERMINAL:   lz_scr_terminal(g_root); break;
         case LZ_V_FILES:      lz_scr_files(g_root); break;
         case LZ_V_WIFI:       lz_scr_wifi(g_root); break;
+        case LZ_V_SETTIME:    lz_scr_settime(g_root); break;
         default: break;
     }
     if(g_focus_obj && g_scroll) {
@@ -209,19 +224,19 @@ static void move(lz_key_t dir)
         int d = (dir == LZ_K_RIGHT) ? 1 : -1;
         if(S.view == LZ_V_MESSAGES) {
             int t = (int)S.msg_tab + d;
-            if(d < 0 && t < 0) { lz_back(); return; }
+            if(d < 0 && t < 0) { if(confirm_left_back()) lz_back(); return; }
             if(t >= 0 && t <= 1 && t != (int)S.msg_tab) { S.msg_tab = (lz_msg_tab_t)t; S.focus = 0; lz_rebuild(); }
             return;
         }
         if(S.view == LZ_V_MESHTASTIC) {
             int t = S.mt_tab + d;
-            if(d < 0 && t < 0) { lz_back(); return; }
+            if(d < 0 && t < 0) { if(confirm_left_back()) lz_back(); return; }
             if(t >= 0 && t <= 1 && t != S.mt_tab) { S.mt_tab = t; S.focus = 0; lz_rebuild(); }
             return;
         }
         if(S.view == LZ_V_MESHCORE) {
             int t = S.mc_tab + d;
-            if(d < 0 && t < 0) { lz_back(); return; }
+            if(d < 0 && t < 0) { if(confirm_left_back()) lz_back(); return; }
             if(t >= 0 && t <= 1 && t != S.mc_tab) { S.mc_tab = t; S.focus = 0; lz_rebuild(); }
             return;
         }
@@ -229,7 +244,7 @@ static void move(lz_key_t dir)
     /* roll left with nowhere to move = go back */
     if(dir == LZ_K_LEFT && S.view != LZ_V_LOCK && S.view != LZ_V_ONBOARD) {
         bool can_left = (g_count > 0 && g_cols > 1 && (S.focus % g_cols) > 0);
-        if(!can_left) { lz_back(); return; }
+        if(!can_left) { if(confirm_left_back()) lz_back(); return; }
     }
     if(g_count == 0) {
         /* no focusables: up/down scroll the list, clamped to the content so the
@@ -347,6 +362,7 @@ void lz_ui_key(lz_key_t k, char c)
     lz_note_activity();                  /* any input wakes the screen + resets idle */
     if(S.view == LZ_V_ONBOARD) { onboard_key(k, c); return; }
     if(S.view == LZ_V_WIFI && S.wifi_pw_mode) { wifi_pw_key(k, c); return; }
+    if(S.view == LZ_V_SETTIME) { lz_settime_key(k, c); return; }
     if(S.view == LZ_V_TERMINAL) { lz_term_key(k, c); return; }
     switch(k) {
         case LZ_K_UP: case LZ_K_DOWN: case LZ_K_LEFT: case LZ_K_RIGHT:
@@ -505,9 +521,9 @@ lv_obj_t *lz_vflex(lv_obj_t *parent)
     lv_obj_set_flex_flow(body, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_scroll_dir(body, LV_DIR_VER);
     lv_obj_set_scrollbar_mode(body, LV_SCROLLBAR_MODE_OFF);
-    /* no rubber-band overscroll past the content (like a real messaging app) */
+    /* keep flick/momentum (swipe-and-release glides) but no rubber-band
+     * overscroll past the content edge */
     lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLL_ELASTIC);
-    lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLL_MOMENTUM);
     lv_obj_clear_flag(body, LV_OBJ_FLAG_SCROLL_CHAIN);
     return body;
 }

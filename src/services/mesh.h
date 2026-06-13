@@ -104,8 +104,12 @@ void lz_svc_set_identity(const char *long_name, const char *short_name);
 void lz_svc_set_node_num(uint32_t num);                   /* real node id (from MAC); call before init */
 
 /* ---- time ---- */
-void lz_svc_set_time(uint32_t epoch);                     /* a real time source synced us */
+void lz_svc_set_time(uint32_t epoch);                     /* set UTC (e.g. NTP) */
 bool lz_svc_time_synced(void);
+void lz_svc_set_tz(int offset_min);                       /* timezone offset, minutes */
+int  lz_svc_tz(void);
+void lz_svc_set_clock(int y, int mo, int d, int h, int mi);  /* manual set (local) */
+void lz_svc_get_clock(int *y, int *mo, int *d, int *h, int *mi);
 const char *lz_fmt_now(char *buf, size_t n);              /* current HH:MM, or "--:--" if unsynced */
 const char *lz_fmt_date(char *buf, size_t n);            /* "Friday, Jun 13", or a hint if unsynced */
 

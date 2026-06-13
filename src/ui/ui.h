@@ -23,7 +23,7 @@ typedef enum {
     LZ_V_ONBOARD, LZ_V_LOCK, LZ_V_HOME, LZ_V_MESSAGES, LZ_V_CONVO,
     LZ_V_MESHTASTIC, LZ_V_MESHCORE, LZ_V_APPSTORE,
     LZ_V_CONTACTS, LZ_V_CONTACT, LZ_V_SETTINGS,
-    LZ_V_SYSTEM, LZ_V_TERMINAL, LZ_V_FILES, LZ_V_WIFI,
+    LZ_V_SYSTEM, LZ_V_TERMINAL, LZ_V_FILES, LZ_V_WIFI, LZ_V_SETTIME,
     LZ_V_COUNT
 } lz_view_t;
 
@@ -72,6 +72,7 @@ typedef struct {
         int bright;                           /* 5..100 */
         int timeout;                          /* cycle index */
         int kb_light;                         /* 0 Auto, 1 On, 2 Off */
+        int tz_idx;                           /* timezone: offset hours = tz_idx - 12 */
     } settings;
 } lz_state_t;
 
@@ -120,6 +121,9 @@ void lz_scr_system(lv_obj_t *root);
 void lz_scr_terminal(lv_obj_t *root);
 void lz_scr_files(lv_obj_t *root);
 void lz_scr_wifi(lv_obj_t *root);
+void lz_scr_settime(lv_obj_t *root);
+void lz_settime_enter(void);            /* load current clock into the editor */
+void lz_settime_key(lz_key_t k, char c);
 
 /* open a network-bound conversation (Messages rows, Contact detail "Message") */
 void lz_open_convo(lz_thread_rt *t);

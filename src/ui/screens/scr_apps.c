@@ -318,7 +318,7 @@ void lz_scr_contact(lv_obj_t *root)
         LZ_BTN(add, false, 96, n->contact ? lv_color_hex(0x1A2520) : lv_color_hex(0x20242B), f1);
         lv_obj_set_style_border_width(add, 1, 0);
         lv_obj_set_style_border_color(add, n->contact ? LZ_GREEN_BG : lv_color_hex(0x2D323A), 0);
-        lz_icon(add, LZ_I_GROUP, &lz_icons_16f, n->contact ? LZ_GREEN_TXT : lv_color_hex(0xCFD4DA));
+        lz_icon(add, LZ_I_PERSON, &lz_icons_16f, n->contact ? LZ_GREEN_TXT : lv_color_hex(0xCFD4DA));
         lz_text(add, n->contact ? "Saved" : "Add", LZ_F_SMALL,
                 n->contact ? LZ_GREEN_TXT : lv_color_hex(0xCFD4DA));
         lz_nav_track(add, 1);
@@ -328,7 +328,7 @@ void lz_scr_contact(lv_obj_t *root)
             lv_obj_set_style_border_width(add, 1, 0);
             lv_obj_set_style_border_color(add, LZ_GREEN_BG, 0);
         }
-        lz_icon(add, LZ_I_GROUP, &lz_icons_16f, n->contact ? LZ_GREEN_TXT : lv_color_white());
+        lz_icon(add, LZ_I_PERSON, &lz_icons_16f, n->contact ? LZ_GREEN_TXT : lv_color_white());
         lz_text(add, n->contact ? "Contact saved" : "Add contact", LZ_F_BODY,
                 n->contact ? LZ_GREEN_TXT : lv_color_white());
         lz_nav_track(add, 0);

@@ -19,7 +19,7 @@ typedef struct {
 
 /* focus indices 2..10 map onto this table (this is a dark-only OS — no dark
  * mode toggle; Wi-Fi opens its own setup screen) */
-static const srow_t SROWS[10] = {
+static const srow_t SROWS[12] = {
     { "Region",           LZ_I_PUBLIC,     ROW_VALUE  },  /* f=2  */
     { "Modem preset",     LZ_I_GRAPHIC_EQ, ROW_VALUE  },  /* f=3  */
     { "TX power",         LZ_I_CELL_TOWER, ROW_VALUE  },  /* f=4  */
@@ -28,10 +28,21 @@ static const srow_t SROWS[10] = {
     { "Brightness",       LZ_I_BRIGHTNESS, ROW_SLIDER },  /* f=7  */
     { "Keyboard light",   LZ_I_BRIGHTNESS, ROW_VALUE  },  /* f=8  */
     { "Sleep after",      LZ_I_SCHEDULE,   ROW_VALUE  },  /* f=9  */
-    { "Power saving",     LZ_I_BOLT,       ROW_TOGGLE },  /* f=10 */
-    { "System & battery", LZ_I_MONITORING, ROW_NAV    },  /* f=11 */
+    { "Time zone",        LZ_I_PUBLIC,     ROW_VALUE  },  /* f=10 */
+    { "Set time",         LZ_I_SCHEDULE,   ROW_NAV    },  /* f=11 */
+    { "Power saving",     LZ_I_BOLT,       ROW_TOGGLE },  /* f=12 */
+    { "System & battery", LZ_I_MONITORING, ROW_NAV    },  /* f=13 */
 };
-#define SETTINGS_FOCUS_COUNT 12   /* 2 network rows + 10 SROWS */
+#define SETTINGS_FOCUS_COUNT 14   /* 2 network rows + 12 SROWS */
+
+/* timezone labels (offset hours = tz_idx - 12, range UTC-12..UTC+14) */
+static const char *tz_label(int idx, char *buf, size_t n)
+{
+    int off = idx - 12;
+    if(off == 0) snprintf(buf, n, "UTC");
+    else snprintf(buf, n, "UTC%+d", off);
+    return buf;
+}
 
 static void cycle(int *idx, int n) { *idx = (*idx + 1) % n; }
 
@@ -51,8 +62,10 @@ static void settings_activate(int f)
         case 7: return;                            /* slider: left/right adjusts */
         case 8: cycle(&S.settings.kb_light, 3); break;
         case 9: cycle(&S.settings.timeout, 5); break;
-        case 10: S.settings.save = !S.settings.save; break;
-        case 11: lz_go(LZ_V_SYSTEM); return;
+        case 10: cycle(&S.settings.tz_idx, 27); lz_svc_set_tz((S.settings.tz_idx - 12) * 60); break;
+        case 11: lz_settime_enter(); lz_go(LZ_V_SETTIME); return;
+        case 12: S.settings.save = !S.settings.save; break;
+        case 13: lz_go(LZ_V_SYSTEM); return;
         default: return;
     }
     lz_rebuild();
@@ -207,12 +220,13 @@ void lz_scr_settings(lv_obj_t *root)
     }
 
     /* --- grouped rows --- */
-    static const struct { const char *title; int first, count; } GROUPS[5] = {
+    static const struct { const char *title; int first, count; } GROUPS[6] = {
         { "RADIO",        2, 3 }, { "CONNECTIVITY", 5, 2 },
-        { "DISPLAY",      7, 3 }, { "POWER",       10, 1 }, { "DEVICE", 11, 1 },
+        { "DISPLAY",      7, 3 }, { "TIME",        10, 2 },
+        { "POWER",       12, 1 }, { "DEVICE",      13, 1 },
     };
     char bval[8];
-    for(int g = 0; g < 5; g++) {
+    for(int g = 0; g < 6; g++) {
         lv_obj_t *card = group_card(body, GROUPS[g].title);
         for(int k = 0; k < GROUPS[g].count; k++) {
             int f = GROUPS[g].first + k;
@@ -246,8 +260,16 @@ void lz_scr_settings(lv_obj_t *root)
                 }
                 case 8: value_chevron(row, KBLIGHT[S.settings.kb_light]); break;
                 case 9: value_chevron(row, TIMEOUTS[S.settings.timeout]); break;
-                case 10: lz_toggle(row, S.settings.save, LZ_TOGGLE_ON); break;
-                case 11: value_chevron(row, "87% - 24C"); break;
+                case 10: { char tzb[8]; value_chevron(row, tz_label(S.settings.tz_idx, tzb, sizeof tzb)); break; }
+                case 11: { char tb[8]; value_chevron(row, lz_fmt_now(tb, sizeof tb)); break; }
+                case 12: lz_toggle(row, S.settings.save, LZ_TOGGLE_ON); break;
+                case 13: {
+                    lz_sysinfo_t si; lz_svc_sysinfo(&si);
+                    char sb[16];
+                    if(si.battery_pct >= 0) snprintf(sb, sizeof sb, "%d%% - %dC", si.battery_pct, si.temp_c);
+                    else snprintf(sb, sizeof sb, "USB - %dC", si.temp_c);
+                    value_chevron(row, sb); break;
+                }
             }
             lz_nav_track(row, f);
         }
@@ -280,6 +302,13 @@ void lz_scr_settings(lv_obj_t *root)
 }
 
 /* ===== System ===== */
+
+static void system_refresh_cb(lv_timer_t *tm)
+{
+    (void)tm;
+    if(S.view == LZ_V_SYSTEM) lz_rebuild();   /* live uptime + stats */
+}
+static void system_timer_del_cb(lv_event_t *e) { lv_timer_del((lv_timer_t *)lv_event_get_user_data(e)); }
 
 void lz_scr_system(lv_obj_t *root)
 {
@@ -428,4 +457,111 @@ void lz_scr_system(lv_obj_t *root)
     }
 
     lz_nav_set(1, 0, NULL);
+
+    /* refresh once a second so uptime + live stats keep counting on this page */
+    lv_timer_t *tm = lv_timer_create(system_refresh_cb, 1000, NULL);
+    lv_obj_add_event_cb(body, system_timer_del_cb, LV_EVENT_DELETE, tm);
+}
+
+/* ===== Manual set-time editor ===== */
+
+static int st_y, st_mo, st_d, st_h, st_mi, st_field;   /* 0 Y,1 Mo,2 D,3 H,4 Mi */
+static const int MONTH_DAYS[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+void lz_settime_enter(void)
+{
+    lz_svc_get_clock(&st_y, &st_mo, &st_d, &st_h, &st_mi);
+    if(st_y < 2024) st_y = 2026;          /* sane default if never synced */
+    st_field = 3;                          /* start on the hour */
+}
+
+static int days_in(int y, int mo)
+{
+    int dd = MONTH_DAYS[(mo - 1) % 12];
+    if(mo == 2 && ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0)) dd = 29;
+    return dd;
+}
+
+void lz_settime_key(lz_key_t k, char c)
+{
+    (void)c;
+    int delta = (k == LZ_K_UP) ? 1 : (k == LZ_K_DOWN) ? -1 : 0;
+    if(k == LZ_K_LEFT)  { if(st_field > 0) st_field--; else { lz_back(); return; } lz_rebuild(); return; }
+    if(k == LZ_K_RIGHT) { if(st_field < 4) st_field++; lz_rebuild(); return; }
+    if(k == LZ_K_DEL)   { lz_back(); return; }
+    if(k == LZ_K_ENTER) { lz_svc_set_clock(st_y, st_mo, st_d, st_h, st_mi); lz_back(); return; }
+    if(delta) {
+        switch(st_field) {
+            case 0: st_y += delta; if(st_y < 2024) st_y = 2024; if(st_y > 2099) st_y = 2099; break;
+            case 1: st_mo += delta; if(st_mo < 1) st_mo = 12; if(st_mo > 12) st_mo = 1; break;
+            case 2: { int dd = days_in(st_y, st_mo); st_d += delta; if(st_d < 1) st_d = dd; if(st_d > dd) st_d = 1; break; }
+            case 3: st_h += delta; if(st_h < 0) st_h = 23; if(st_h > 23) st_h = 0; break;
+            case 4: st_mi += delta; if(st_mi < 0) st_mi = 59; if(st_mi > 59) st_mi = 0; break;
+        }
+        lz_rebuild();
+    }
+}
+
+void lz_scr_settime(lv_obj_t *root)
+{
+    lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
+    lz_navbar(root, "Set time", NULL);
+
+    lv_obj_t *body = lz_vflex(root);
+    lv_obj_set_flex_align(body, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+    lv_obj_set_style_pad_top(body, 14, 0);
+    lv_obj_set_style_pad_row(body, 12, 0);
+
+    lz_text(body, "Trackball: up/down change - left/right move - click to save",
+            LZ_F_SMALL, LZ_TEXT_3);
+
+    /* HH : MM */
+    lv_obj_t *time_row = lz_box(body);
+    lv_obj_set_size(time_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(time_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(time_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(time_row, 6, 0);
+    int tvals[2] = { st_h, st_mi };
+    for(int f = 0; f < 2; f++) {
+        if(f == 1) lz_text(time_row, ":", LZ_F_BIG, LZ_TEXT);
+        char v[4]; snprintf(v, sizeof v, "%02d", tvals[f]);
+        lv_obj_t *cell = lz_box(time_row);
+        lv_obj_set_size(cell, 56, 46);
+        lv_obj_set_style_radius(cell, 9, 0);
+        lv_obj_set_style_bg_color(cell, st_field == (f == 0 ? 3 : 4) ? LZ_ROW_FOCUS_BG : LZ_ROW_BG, 0);
+        lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, 0);
+        if(st_field == (f == 0 ? 3 : 4)) {
+            lv_obj_set_style_border_width(cell, 2, 0);
+            lv_obj_set_style_border_color(cell, LZ_FOCUS, 0);
+        }
+        lv_obj_t *t = lz_text(cell, v, LZ_F_BIG, LZ_TEXT);
+        lv_obj_center(t);
+    }
+
+    /* date Y - M - D */
+    static const char *MON[12] = { "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec" };
+    lv_obj_t *date_row = lz_box(body);
+    lv_obj_set_size(date_row, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(date_row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(date_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(date_row, 6, 0);
+    char yb[6], db[4]; snprintf(yb, sizeof yb, "%d", st_y); snprintf(db, sizeof db, "%d", st_d);
+    const char *dvals[3] = { MON[(st_mo - 1) % 12], db, yb };
+    int dfields[3] = { 1, 2, 0 };
+    for(int i = 0; i < 3; i++) {
+        lv_obj_t *cell = lz_box(date_row);
+        lv_obj_set_size(cell, 50, 30);
+        lv_obj_set_style_radius(cell, 8, 0);
+        lv_obj_set_style_bg_color(cell, st_field == dfields[i] ? LZ_ROW_FOCUS_BG : LZ_ROW_BG, 0);
+        lv_obj_set_style_bg_opa(cell, LV_OPA_COVER, 0);
+        if(st_field == dfields[i]) {
+            lv_obj_set_style_border_width(cell, 2, 0);
+            lv_obj_set_style_border_color(cell, LZ_FOCUS, 0);
+        }
+        lv_obj_t *t = lz_text(cell, dvals[i], LZ_F_BODY, LZ_TEXT);
+        lv_obj_center(t);
+    }
+
+    lz_text(body, "Or connect Wi-Fi to set the time automatically", LZ_F_SMALL, LZ_TEXT_3);
+    lz_nav_set(1, 0, NULL);   /* keys handled by lz_settime_key */
 }
