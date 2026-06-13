@@ -95,6 +95,11 @@ static void home_activate(int idx)
     if(idx >= 0 && idx < 8 && app_enabled(LZ_APPS[idx].id)) lz_go(views[idx]);
 }
 
+static bool home_disabled(int idx)
+{
+    return idx >= 0 && idx < 8 && !app_enabled(LZ_APPS[idx].id);
+}
+
 void lz_scr_home(lv_obj_t *root)
 {
     lz_status_bar(root);
@@ -105,8 +110,12 @@ void lz_scr_home(lv_obj_t *root)
         bool foc = (i == S.focus);
         bool en = app_enabled(a->id);
         int col = i % 4, row = i / 4;
+        /* center the 4x2 grid in the area below the status bar */
         int cell_x = 12 + col * 75;
-        int cell_y = LZ_STATUSBAR_H + 11 + row * (46 + 10 + 4 + 9);
+        int avail = LZ_H - LZ_STATUSBAR_H;
+        int grid_h = 2 * 46 + 2 * 14 + 1 * 18;   /* tiles + labels + row gap */
+        int top = LZ_STATUSBAR_H + (avail - grid_h) / 2;
+        int cell_y = top + row * (46 + 14 + 18);
 
         lv_obj_t *tile = lz_box(root);
         lv_obj_set_size(tile, 46, 46);
@@ -129,21 +138,23 @@ void lz_scr_home(lv_obj_t *root)
         lv_obj_update_layout(lbl);
         lv_obj_set_pos(lbl, cell_x + (71 - lv_obj_get_width(lbl)) / 2, cell_y + 46 + 4);
 
-        /* "Soon" chip on locked apps */
+        /* "SOON" badge: a small pill in the tile's top-right corner, clearly
+         * separated from the glyph and the app-name label below */
         if(!en) {
             lv_obj_t *soon = lz_box(tile);
-            lv_obj_set_size(soon, LV_SIZE_CONTENT, 12);
+            lv_obj_set_size(soon, LV_SIZE_CONTENT, 11);
             lv_obj_set_style_radius(soon, LV_RADIUS_CIRCLE, 0);
             lv_obj_set_style_bg_color(soon, lv_color_hex(0x0C0E12), 0);
             lv_obj_set_style_bg_opa(soon, LV_OPA_COVER, 0);
-            lv_obj_set_style_pad_hor(soon, 4, 0);
-            lv_obj_t *st = lz_text(soon, "SOON", LZ_F_SMALL, lv_color_hex(0x868F99));
+            lv_obj_set_style_pad_hor(soon, 3, 0);
+            lv_obj_t *st = lz_text(soon, "SOON", LZ_F_SMALL, lv_color_hex(0x969EA8));
             lv_obj_center(st);
-            lv_obj_align(soon, LV_ALIGN_BOTTOM_MID, 0, 2);
+            lv_obj_align(soon, LV_ALIGN_TOP_RIGHT, 3, -4);
         }
 
         lz_nav_track(tile, i);
     }
 
     lz_nav_set(4, 8, home_activate);
+    lz_nav_set_skip(home_disabled);
 }

@@ -32,6 +32,9 @@ static const srow_t SROWS[9] = {
 
 static void cycle(int *idx, int n) { *idx = (*idx + 1) % n; }
 
+/* focus skips the MeshCore network row while it's locked (Stage 1) */
+static bool settings_disabled(int idx) { return idx == 1 && !LZ_MESHCORE_ENABLED; }
+
 static void settings_activate(int f)
 {
     switch(f) {
@@ -266,6 +269,7 @@ void lz_scr_settings(lv_obj_t *root)
     }
 
     lz_nav_set(1, SETTINGS_FOCUS_COUNT, settings_activate);
+    lz_nav_set_skip(settings_disabled);
 }
 
 /* ===== System ===== */
@@ -344,6 +348,9 @@ void lz_scr_system(lv_obj_t *root)
         lv_obj_set_flex_align(hd, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
         lz_text(hd, s->label, LZ_F_SMALL, LZ_TEXT_VALUE);
         lz_text(hd, s->value, LZ_F_SMALL, LZ_TEXT_STRONG);
+        /* Uptime is open-ended -> no bar; everything else has a 0..100 fill
+         * that tracks its value (Temp is pre-scaled to a 0-90C range) */
+        if(i == 4) continue;
         lv_obj_t *track = lz_box(st);
         lv_obj_set_size(track, lv_pct(100), 5);
         lv_obj_set_style_radius(track, 3, 0);

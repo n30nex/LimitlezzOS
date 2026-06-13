@@ -134,9 +134,15 @@ void lz_scr_appstore(lv_obj_t *root)
 static lz_node_rt *contact_list[LZ_MAX_NODES];
 static int contact_n;
 
+static bool contact_locked(int idx)   /* MeshCore contacts inert until Stage 2 */
+{
+    return idx >= 0 && idx < contact_n &&
+           !LZ_MESHCORE_ENABLED && contact_list[idx]->net == LZ_NET_MC;
+}
+
 static void contacts_activate(int idx)
 {
-    if(idx >= 0 && idx < contact_n) {
+    if(idx >= 0 && idx < contact_n && !contact_locked(idx)) {
         S.contact_sel = contact_list[idx];
         lz_go(LZ_V_CONTACT);
     }
@@ -205,10 +211,16 @@ void lz_scr_contacts(lv_obj_t *root)
         lv_obj_set_flex_flow(r, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(r, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
         lz_text(r, ago, LZ_F_SMALL, LZ_TEXT_META);
-        lz_text(r, snrs, LZ_F_SMALL, lz_snr_color(n->snr));
+        /* Meshtastic reports SNR; MeshCore doesn't, so show distance instead of
+         * a number that would look like a (red) SNR reading */
+        if(n->net == LZ_NET_MT)
+            lz_text(r, snrs, LZ_F_SMALL, lz_snr_color(n->snr));
+        else
+            lz_text(r, n->dist, LZ_F_SMALL, LZ_TEXT_3);
         lz_nav_track(row, i);
     }
     lz_nav_set(1, contact_n, contacts_activate);
+    lz_nav_set_skip(contact_locked);
 }
 
 /* ===== Contact detail ===== */
@@ -558,15 +570,16 @@ void lz_scr_files(lv_obj_t *root)
     lv_obj_set_style_pad_row(body, 2, 0);
     lz_nav_set_scroll(body);
 
+    /* read-only browser: rows are display-only (no drill-in yet), so they are
+     * not focusable — up/down scrolls the list instead of landing on dead rows */
     for(int i = 0; i < 7; i++) {
         const lz_file_t *f = &LZ_FILES[i];
-        lv_obj_t *row = lz_row(body, i == S.focus);
+        lv_obj_t *row = lz_row(body, false);
         lz_icon(row, f->dir ? LZ_I_FOLDER : LZ_I_DESCRIPTION, &lz_icons_18,
                 f->dir ? LZ_FILE_FOLDER : lv_color_hex(0x8B939C));
         lv_obj_t *name = lz_text(row, f->name, LZ_F_BODY, LZ_TEXT_SETTING);
         lv_obj_set_flex_grow(name, 1);
         lz_text(row, f->meta, LZ_F_MONO, LZ_TEXT_META);
-        lz_nav_track(row, i);
     }
-    lz_nav_set(1, 7, NULL);
+    lz_nav_set(1, 0, NULL);   /* scroll-only */
 }

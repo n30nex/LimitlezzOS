@@ -186,11 +186,12 @@ static void shots(const char *dir)
     write_bmp(path); printf("wrote %s\n", path);
     S.net_mc = true;
 
-    /* filter to MeshCore via key '3' */
-    lz_ui_key(LZ_K_CHAR, '3');
+    /* filter to Meshtastic via key '2' (the active-filter pill should move) */
+    lz_ui_key(LZ_K_CHAR, '2');
     pump(60);
-    snprintf(path, sizeof path, "%s/16-messages-filter-mc.bmp", dir);
+    snprintf(path, sizeof path, "%s/16-messages-filter-mt.bmp", dir);
     write_bmp(path); printf("wrote %s\n", path);
+    lz_ui_key(LZ_K_CHAR, '1');   /* back to All */
 
     /* type a draft and send it through the service */
     S.msg_filter = LZ_FILT_ALL; S.msg_tab = LZ_TAB_DMS;
@@ -282,10 +283,6 @@ static void shots(const char *dir)
     snprintf(path, sizeof path, "%s/29-wifi-connected.bmp", dir);
     write_bmp(path); printf("wrote %s\n", path);
 
-    /* home with MeshCore + App Store grayed out */
-    S.view = LZ_V_HOME; S.focus = 0; lz_rebuild(); pump(40);
-    snprintf(path, sizeof path, "%s/30-home-grayed.bmp", dir);
-    write_bmp(path); printf("wrote %s\n", path);
 }
 
 /* Codec round-trip verification — proves header framing, AES-CTR symmetry,

@@ -197,8 +197,8 @@ void lz_scr_meshtastic(lv_obj_t *root)
         for(int i = 0; i < 4; i++) {
             const lz_chan_t *c = &LZ_CHANS[i];
             if(c->net != LZ_NET_MT) continue;
-            int idx = n++;
-            lv_obj_t *row = lz_row(body, idx == S.focus);
+            n++;
+            lv_obj_t *row = lz_row(body, false);   /* channel rows are display-only */
             lv_obj_set_style_radius(row, 10, 0);
             lv_obj_set_style_pad_column(row, 8, 0);
             lz_icon(row, c->icon, &lz_icons_18, cyan_lt);
@@ -219,9 +219,8 @@ void lz_scr_meshtastic(lv_obj_t *root)
                 lv_obj_t *bl = lz_text(b, "PRIMARY", LZ_F_SMALL, cyan_lt);
                 lv_obj_center(bl);
             }
-            lz_nav_track(row, idx);
         }
-        lz_nav_set(1, n, NULL);
+        lz_nav_set(1, 0, NULL);   /* display-only */
     }
 }
 

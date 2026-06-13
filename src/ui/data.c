@@ -96,8 +96,8 @@ const lz_sys_stat_t LZ_SYS_STATS[5] = {
     { "CPU - ESP32-S3 @ 240MHz", "12%",          12 },
     { "RAM",                     "84 / 512 KB",  16 },
     { "Flash storage",           "6.2 / 16 MB",  39 },
-    { "Temperature",             "24 C",         34 },
-    { "Uptime",                  "3d 04:12",     62 },
+    { "Temperature",             "24 C",         27 },   /* 24 of a 0-90C range */
+    { "Uptime",                  "3d 04:12",     0  },   /* open-ended: no bar */
 };
 
 lv_color_t lz_tile_color(int hue)

@@ -8,6 +8,7 @@ static lv_obj_t *g_root;
 static int g_cols = 1;
 static int g_count = 0;
 static void (*g_activate)(int idx);
+static bool (*g_skip)(int idx);  /* indices the focus ring must skip over */
 static lv_obj_t *g_scroll;
 static lv_obj_t *g_focus_obj;   /* object to scroll into view */
 
@@ -37,6 +38,8 @@ void lz_nav_set(int cols, int count, void (*activate)(int idx))
     g_count = count;
     g_activate = activate;
 }
+
+void lz_nav_set_skip(bool (*fn)(int)) { g_skip = fn; }
 
 void lz_nav_set_scroll(lv_obj_t *scroll) { g_scroll = scroll; }
 
@@ -79,7 +82,7 @@ void lz_nav_track(lv_obj_t *obj, int idx)
 
 void lz_rebuild(void)
 {
-    g_cols = 1; g_count = 0; g_activate = NULL; g_scroll = NULL; g_focus_obj = NULL;
+    g_cols = 1; g_count = 0; g_activate = NULL; g_scroll = NULL; g_focus_obj = NULL; g_skip = NULL;
     lv_obj_clean(g_root);
     /* screens style the root itself (flex flow, bg) — reset it fully so
      * layout from the previous screen can't leak into the next build */
@@ -182,11 +185,21 @@ static void move(lz_key_t dir)
         return;
     }
     int f = S.focus, nf = f;
-    if(dir == LZ_K_UP)         nf = f - g_cols;
-    else if(dir == LZ_K_DOWN)  nf = f + g_cols;
-    else if(dir == LZ_K_LEFT)  { if(f % g_cols > 0) nf = f - 1; }
-    else if(dir == LZ_K_RIGHT) { if(f % g_cols < g_cols - 1 && f + 1 < g_count) nf = f + 1; }
-    if(nf < 0 || nf >= g_count) nf = f;
+    /* step in the requested direction, skipping disabled cells so the ring
+     * never lands on something inert (no dead controls) */
+    int step = (dir == LZ_K_UP) ? -g_cols : (dir == LZ_K_DOWN) ? g_cols
+             : (dir == LZ_K_LEFT) ? -1 : 1;
+    int cand = f;
+    for(;;) {
+        if(dir == LZ_K_LEFT  && cand % g_cols == 0) break;             /* row edge */
+        if(dir == LZ_K_RIGHT && cand % g_cols == g_cols - 1) break;
+        cand += step;
+        if(cand < 0 || cand >= g_count) break;
+        if(!g_skip || !g_skip(cand)) { nf = cand; break; }             /* found focusable */
+        if(dir == LZ_K_LEFT || dir == LZ_K_RIGHT) {                     /* keep scanning the row */
+            if(cand % g_cols == 0 || cand % g_cols == g_cols - 1) break;
+        }
+    }
     if(nf != f) { S.focus = nf; lz_rebuild(); }
 }
 
@@ -275,11 +288,8 @@ void lz_ui_key(lz_key_t k, char c)
             return;
         case LZ_K_BACK:
             if(S.view == LZ_V_LOCK) return;
-            if(S.view == LZ_V_CONVO && S.draft[0]) {       /* backspace edits draft first */
-                S.draft[strlen(S.draft) - 1] = 0;
-                lz_rebuild();
-                return;
-            }
+            /* Back always leaves the conversation in one press; the draft is
+             * discarded (typing a fresh message is cheap, feeling stuck isn't) */
             lz_back();
             return;
         case LZ_K_CHAR:

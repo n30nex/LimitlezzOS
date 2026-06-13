@@ -117,7 +117,7 @@ void lz_scr_messages(lv_obj_t *root)
     lv_obj_t *mc_chip = filter_chip(filters, "MeshCore", S.msg_filter == LZ_FILT_MC,
                 LZ_AMBER, true, LZ_AMBER, LZ_ON_AMBER);
     if(LZ_MESHCORE_ENABLED) lz_on_click(mc_chip, tap_filter_mc);
-    else lv_obj_set_style_opa(mc_chip, LV_OPA_40, 0);   /* locked until Stage 2 */
+    else lv_obj_set_style_opa(mc_chip, LV_OPA_70, 0);   /* locked, but still legible */
 
     /* list */
     lv_obj_t *body = lz_vflex(root);
@@ -224,7 +224,8 @@ void lz_scr_messages(lv_obj_t *root)
             const lz_chan_t *c = &LZ_CHANS[i];
             if(!filter_match(c->net)) continue;
             int idx = n++;
-            lv_obj_t *row = lz_row(body, idx == S.focus);
+            (void)idx;
+            lv_obj_t *row = lz_row(body, false);   /* channels are display-only for now */
             lv_obj_set_style_radius(row, 11, 0);
             if(!net_on(c->net)) lv_obj_set_style_opa(row, LV_OPA_40, 0);
 
@@ -253,9 +254,8 @@ void lz_scr_messages(lv_obj_t *root)
             lv_obj_t *last = lz_text(colm, c->text, LZ_F_SMALL, LZ_TEXT_VALUE);
             lv_label_set_long_mode(last, LV_LABEL_LONG_DOT);
             lv_obj_set_width(last, lv_pct(100));
-            lz_nav_track(row, idx);
         }
-        lz_nav_set(1, n, messages_activate);
+        lz_nav_set(1, 0, NULL);   /* channels list is display-only (scroll) */
     }
 }
 
