@@ -12,7 +12,7 @@ follows the design handoff (`docs/design/`) exactly as the master spec
 prescribes: flat solid fills, 1px hairlines, a 2px near-white focus ring, baked
 font tables, no images, no gradients, no alpha layering.
 
-> ⚠️ **This is an ALPHA TEST (0.2).** It runs on real hardware and the core
+> ⚠️ **This is an ALPHA TEST (0.3).** It runs on real hardware and the core
 > Meshtastic experience is usable, but some features are still unfinished (see
 > below). The near-term goal is to make this a great **Meshtastic** OS — on par
 > with the official device UI (MUI) — before fully building out **MeshCore**.
@@ -26,7 +26,11 @@ font tables, no images, no gradients, no alpha layering.
 - **Touchscreen** — tap items/tabs/buttons/toggles; **3-tap on-screen calibration** (Settings → Calibrate touch) that any T-Deck can run, persisted across reboot.
 - **Clock** — status-bar time, NTP sync over Wi-Fi, named timezone picker, automatic DST (US/EU), **12-hour (AM/PM) or 24-hour** format.
 - **Meshtastic channel messaging (LongFast)** — send **and** receive on the public channel.
-- **Node discovery** — heard nodes list (name, SNR, last-heard).
+- **Meshtastic direct messages (PKI)** — encrypted DMs both ways with real nodes
+  (X25519 + AES-256-CCM), keys exchanged via NodeInfo and **persisted across
+  reboots**; we send a ROUTING ack so the sender sees "delivered". Hardware-verified.
+- **Node discovery** — heard nodes list (name, SNR, last-heard); holds up to 250
+  nodes (matches MUI), evicting the stalest when full.
 - **Message history** — persists across leaving a chat and across reboots (SD card).
 - **Compose** — long drafts scroll within the input box instead of overflowing.
 - **Wi-Fi** — scan, connect, saved password, auto-connect toggle, forget.
@@ -48,13 +52,12 @@ font tables, no images, no gradients, no alpha layering.
 ### 🛠️ Roadmap — make Meshtastic great (in priority order)
 1. ✅ **DM: tap the name at the top of a chat → open that contact's profile.**
 2. ✅ **Channel: long-press a message → sender's profile → Message / Add to contacts.**
-3. **Meshtastic DMs (send + receive)** — needs PKI (Curve25519 + AES-CCM), as
-   modern Meshtastic encrypts DMs per-recipient. *(in progress)*
-4. **USB companion → connect to the official Meshtastic app** (add Config msgs).
-5. **BLE companion** — let phones connect wirelessly, not just over USB.
-6. **Message delivery status** — show Delivered / Failed (via ROUTING_APP acks);
+3. ✅ **Meshtastic DMs (send + receive)** — PKI (X25519 + AES-256-CCM), verified both ways.
+4. **Message delivery status** — show Delivered / Failed (via ROUTING_APP acks);
    long-press your own failed message to resend, resetting its status until it's
-   determined delivered or failed.
+   determined delivered or failed. *(next)*
+5. **USB companion → connect to the official Meshtastic app** (add Config msgs).
+6. **BLE companion** — let phones connect wirelessly, not just over USB.
 7. **List virtualization** — node/contact/message lists recycle off-screen rows
    (only the visible window has objects) so a full 250-node DB doesn't exhaust
    the LVGL object pool.
