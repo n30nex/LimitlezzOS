@@ -130,6 +130,9 @@ static uint32_t airtime_ms(int payload_len)
 }
 
 static void send_nodeinfo(uint32_t to, bool want_response);   /* fwd decl */
+static void send_routing_ack(uint32_t to, uint32_t req_id);   /* fwd decl */
+static volatile bool g_rxlog;     /* serial: log inbound MT packet metadata + decode */
+extern "C" void lz_backend_set_rxlog(bool on) { g_rxlog = on; }
 
 /* ---- minimal Meshtastic User decode (NodeInfo payload) ---- */
 static void parse_user(const uint8_t *b, int len, uint32_t from, float snr)
@@ -162,6 +165,8 @@ static void parse_user(const uint8_t *b, int len, uint32_t from, float snr)
         else if(wire == 1) pos += 8;
         else break;
     }
+    if(g_rxlog) Serial.printf("[ni] from=!%08x name='%s' short='%s' hw=%d pubkey=%s (userlen=%d)\n",
+                              (unsigned)from, longn, shortn, hw, pubkey ? "YES" : "no", len);
     lz_core_on_nodeinfo(from, id[0] ? id : NULL, longn[0] ? longn : NULL,
                         shortn[0] ? shortn : NULL, 0, NULL, snr);
     if(pubkey) lz_core_on_pubkey(from, pubkey);   /* remember key for PKI DMs */
@@ -198,9 +203,6 @@ static void rebroadcast(uint8_t *frame, int len, mt_frame_t *f)
     delay(30 + (esp_random() & 0x7F));      /* contention window */
     tx_frame(frame, len);
 }
-
-static volatile bool g_rxlog;     /* serial: log inbound MT packet metadata + decode */
-extern "C" void lz_backend_set_rxlog(bool on) { g_rxlog = on; }
 
 /* ---- Meshtastic RX (active profile == PROF_MT) ---- */
 static void handle_rx_mt(void)
@@ -250,6 +252,10 @@ static void handle_rx_mt(void)
         if(mt_data_decode(dec, dl, &d)) {
             if(g_rxlog) Serial.printf("[rx]   decoded portnum=%d len=%d%s\n",
                                       d.portnum, d.plen, d.want_response ? " want_response" : "");
+            /* acknowledge a want-ack packet addressed to us so the sender sees
+             * "delivered" (don't ack an ack) */
+            if(f.to == me && f.want_ack && d.portnum != MT_PORT_ROUTING)
+                send_routing_ack(f.from, f.id);
             int hops_used = (int)f.hop_start - (int)f.hop_limit;
             if(hops_used < 0) hops_used = 0;
             /* companion mode: hand the whole decoded packet to the phone app */
@@ -350,6 +356,36 @@ static void send_nodeinfo(uint32_t to, bool want_response)
 }
 
 static void broadcast_nodeinfo(void) { send_nodeinfo(MT_BROADCAST, false); }
+
+/* send a ROUTING_APP ack for a received want-ack packet, so the sender sees
+ * "delivered". Empty Routing payload = implicit ACK (error_reason NONE). Goes
+ * out PSK on the channel (ROUTING is not PKI-encrypted). */
+static void send_routing_ack(uint32_t to, uint32_t req_id)
+{
+    if(!g_ok) return;
+    const lz_identity_t *id = lz_svc_identity();
+    mt_data_t d;
+    memset(&d, 0, sizeof d);
+    d.portnum = MT_PORT_ROUTING;
+    d.request_id = req_id;
+    d.plen = 0;
+    uint8_t plain[64];
+    int pn = mt_data_encode(plain, sizeof plain, &d);
+    if(pn < 0) return;
+    uint32_t pid = (uint32_t)(esp_random() | 1);
+    mt_crypt(plain, pn, id->num, pid);
+
+    mt_frame_t f;
+    memset(&f, 0, sizeof f);
+    f.to = to; f.from = id->num; f.id = pid;
+    f.hop_limit = 3; f.hop_start = 3;
+    f.channel_hash = mt_channel_hash();
+
+    uint8_t frame[96];
+    mt_header_write(frame, &f);
+    memcpy(frame + MT_HEADER_LEN, plain, pn);
+    tx_frame(frame, MT_HEADER_LEN + pn);
+}
 
 /* ask one node for its NodeInfo (so we learn its public key for PKI DMs) */
 extern "C" void lz_backend_request_nodeinfo(uint32_t to)
