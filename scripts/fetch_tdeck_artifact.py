@@ -69,6 +69,14 @@ def load_runs(project_dir: Path, repo: str, workflow: str, branch: str, limit: i
     return json.loads(data)
 
 
+def load_artifacts(project_dir: Path, repo: str, run_id: int) -> list[dict]:
+    data = run_text(
+        ["gh", "api", f"repos/{repo}/actions/runs/{run_id}/artifacts"],
+        project_dir,
+    )
+    return json.loads(data).get("artifacts", [])
+
+
 def choose_run(runs: list[dict], commit: str, allow_latest_success: bool) -> dict:
     successful = [r for r in runs if r.get("status") == "completed" and r.get("conclusion") == "success"]
     for run in successful:
@@ -137,6 +145,23 @@ def main() -> int:
         run_url = chosen["url"]
 
     artifact_name = args.artifact_name or f"tdeck-firmware-{artifact_sha}"
+    if args.artifact_name is None:
+        artifacts = load_artifacts(project_dir, repo, run_id)
+        names = [a.get("name", "") for a in artifacts]
+        if artifact_name not in names:
+            tdeck_names = [name for name in names if name.startswith("tdeck-firmware-")]
+            if len(tdeck_names) == 1:
+                print(
+                    f"[artifact] expected {artifact_name}, using run artifact {tdeck_names[0]}",
+                    file=sys.stderr,
+                )
+                artifact_name = tdeck_names[0]
+            else:
+                available = "\n".join(f"  {name}" for name in names)
+                raise SystemExit(
+                    f"Artifact {artifact_name} was not found in run {run_id}.\n"
+                    f"Available artifacts:\n{available}"
+                )
     out_dir.mkdir(parents=True, exist_ok=True)
 
     run_text(
