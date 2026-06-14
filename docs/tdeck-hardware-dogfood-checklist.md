@@ -16,8 +16,13 @@ dogfood belong to the later roadmap phases.
 
 - Record the git commit, branch, and dirty/clean state.
 - Build a fresh artifact with `pio run -e tdeck`.
+- On slow local hosts, prefer the GitHub Actions artifact for the exact pushed
+  commit: `python scripts/fetch_tdeck_artifact.py`, then flash with
+  `python scripts/tdeck_smoke.py --no-stub-upload --skip-build --artifact-dir .pio/ci-artifacts/tdeck --port COM8`.
 - Record the firmware artifact path, size, and timestamp.
-- Confirm a native simulator sanity pass with `.pio\build\native\program.exe --selftest`.
+- Confirm a native simulator sanity pass:
+  - Linux/macOS: `pio run -e native && .pio/build/native/program --selftest`
+  - Windows: `pio run -e native; .pio\build\native\program.exe --selftest`
 - Confirm the SD card is mounted or deliberately test RAM-only behavior.
 - Confirm peer devices are on the intended Meshtastic channel and can exchange messages with each other.
 
@@ -25,11 +30,14 @@ dogfood belong to the later roadmap phases.
 
 - Flash with `pio run -e tdeck -t upload`.
 - If the normal upload path is flaky on the local T-Deck/host pair, fall back to
-  the known reliable Windows direct-flash path with `esptool.py --no-stub`.
+  the direct-flash helper with `python scripts/tdeck_smoke.py --port COM8 --no-stub-upload`
+  or the same command with the Linux serial device path.
+- For serial CLI smoke without flashing, run `python scripts/tdeck_smoke.py --skip-upload --port COM8`
+  on the Windows rig or pass the Linux/macOS device path such as `/dev/ttyACM0`.
 - Open the USB console at 115200 baud.
 - Capture the boot banner and every `[ok]` or failure line.
 - Confirm display, touch, keyboard, trackball, SD, SX1262, Wi-Fi state, battery, and time source are reported.
-- Run `help` and confirm diagnostics include `dm status`, `rxlog`, `nodes`, `net`, `rf`, and `companion`.
+- Run `help` and confirm diagnostics include `dm status`, `rxlog`, `nodes`, `net`, `rf`, `companion`, and `companion ble`.
 
 ## Hardware Evidence Log
 
@@ -42,6 +50,7 @@ dogfood belong to the later roadmap phases.
 - Direct ROM flashing with PlatformIO's packaged `esptool.py v4.5.1 --no-stub` on `COM8` succeeded; bootloader, partitions, `boot_app0.bin`, and firmware hashes all verified.
 - A local Windows COM8 attach with DTR/RTS preset low before opening the serial handle avoided the host reset loop and reached the LimitlezzOS `lz>` prompt; no Windows helper was added to the repo.
 - COM8 CLI smoke passed for `id`, `sys`, `net`, `rf`, `stats`, `wifi`, and `companion test`.
+- BLE companion firmware build proof is present in the V0.5 branch; still run official Meshtastic app pairing, reconnect, send, receive, and disconnect validation before marking BLE hardware-tested.
 - Companion self-test evidence: `27 frames | my_info=1 metadata=1 config=1 channel=1 complete=1 nonce=1234abcd -> PASS`.
 - Post-flash serial before the local attach fix showed ESP-ROM `SPI_FAST_FLASH_BOOT` and app entry at `0x403c98d0`, then `COM8` disconnected during USB handoff before the LimitlezzOS `lz>` prompt appeared.
 - The ROM saved PC `0x420c67ae` decoded against the flashed ELF to `esp_pm_impl_waiti`, which indicates the previous reset happened while the app was idle rather than at a decoded crash site.

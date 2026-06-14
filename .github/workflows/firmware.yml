@@ -66,13 +66,30 @@ jobs:
             echo "- firmware.elf: $(stat -c%s .pio/build/tdeck/firmware.elf) bytes"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Prepare T-Deck flash bundle
+        env:
+          ARTIFACT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          cp ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin .pio/build/tdeck/boot_app0.bin
+          {
+            echo "repo=${GITHUB_REPOSITORY}"
+            echo "sha=${ARTIFACT_SHA}"
+            echo "github_sha=${GITHUB_SHA}"
+            echo "workflow=${GITHUB_WORKFLOW}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "flash_offsets=0x0 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 firmware.bin"
+          } > .pio/build/tdeck/FLASH_MANIFEST.txt
+
       - name: Upload T-Deck artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: tdeck-firmware-${{ github.sha }}
+          name: tdeck-firmware-${{ github.event.pull_request.head.sha || github.sha }}
           if-no-files-found: error
           path: |
+            .pio/build/tdeck/bootloader.bin
+            .pio/build/tdeck/boot_app0.bin
             .pio/build/tdeck/firmware.bin
             .pio/build/tdeck/firmware.elf
             .pio/build/tdeck/firmware.map
             .pio/build/tdeck/partitions.bin
+            .pio/build/tdeck/FLASH_MANIFEST.txt

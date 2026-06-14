@@ -50,8 +50,9 @@ Deliverables:
 
 - Confirm and encode the correct LilyGO T-Deck board profile: 16 MB flash, PSRAM, upload flash size, partition compatibility, and memory type.
 - Add CI for `pio run -e tdeck` with firmware size reporting. Implemented in `.github/workflows/firmware.yml`; CI builds the T-Deck target, captures `pio run -t size`, and uploads firmware artifacts.
-- Add a simulator CI path or clear host-specific setup docs for SDL2. Implemented in `.github/workflows/firmware.yml`; Ubuntu CI installs SDL2, builds the native simulator, and runs `program --selftest`.
-- Make `pio run -e native` fail clearly when `sdl2-config` is absent. Implemented by `scripts/pio_native_sdl2.py`; CI covers the SDL2-present path.
+- Make CI artifacts usable for local hardware smoke on slow hosts. Implemented: Firmware CI now uploads a flash bundle with bootloader, partitions, boot app, firmware, ELF/map, and manifest; `scripts/fetch_tdeck_artifact.py` downloads the exact-commit artifact for local `scripts/tdeck_smoke.py --skip-build` flashing.
+- Add a simulator CI path or clear host-specific setup docs for SDL2. Implemented in `.github/workflows/firmware.yml`; Ubuntu CI installs SDL2, Windows can install the local SDL2 bundle with `scripts/ensure_sdl2_windows.ps1`, and `pio run -e native` runs through `scripts/pio_native_sdl2.py`.
+- Make `pio run -e native` fail clearly when SDL2 is absent. Implemented by `scripts/pio_native_sdl2.py`; Linux/macOS use `sdl2-config` or `pkg-config`, while Windows uses `SDL2_DIR` or the local `.deps` bundle.
 - Add a release checklist covering build, flash, boot log, display, touch, keyboard, trackball, SD, radio, Wi-Fi, companion, and sleep.
 - Update README status wording so "working", "partial", "prototype", and "planned" are distinct.
 - Persist user settings beyond identity/Wi-Fi/touch/keys: brightness, timeout, clock format, time zone, keyboard light, TX power, network toggles, power saving. Implemented through `settings.cfg`; Wi-Fi credential hardening remains V0.96.
@@ -88,7 +89,7 @@ Deliverables:
   and environment temperature/humidity/pressure metrics.
 - Keep radio settings simple in the primary UI; advanced region/preset/channel controls, if added, belong in Developer Mode.
 - Replace static Files screen with a read-only SD/appfs browser. Implemented for mounted SD/local store; appfs mount support remains V0.95 app-platform work.
-- Add hardware dogfood checklist against stock Meshtastic devices. Created as `docs/tdeck-hardware-dogfood-checklist.md`; 2026-06-14 COM8 flash and USB CLI smoke evidence is logged there, but stock Meshtastic peer dogfood still needs a passing run before calling Phase 1 shippable.
+- Add hardware dogfood checklist against stock Meshtastic devices. Created as `docs/tdeck-hardware-dogfood-checklist.md`; 2026-06-14 COM8 flash and USB CLI smoke evidence is logged there, and `scripts/tdeck_smoke.py` now gives both Windows and Linux developers a repeatable serial-smoke path. Stock Meshtastic peer dogfood still needs a passing run before calling Phase 1 shippable.
 
 Exit criteria:
 
@@ -101,16 +102,16 @@ Goal: let the official Meshtastic app connect wirelessly to the T-Deck radio aft
 
 Deliverables:
 
-- Add BLE transport for the Meshtastic companion protocol.
-- Reuse the USB companion handshake/model where possible so node DB, channel, config, and packet forwarding behavior stay consistent.
-- Add clear UI state for USB companion, BLE companion, and normal serial console mode.
-- Define what happens when USB and BLE companion clients compete for the radio.
-- Add serial diagnostics and a loopback/selftest equivalent for BLE where practical.
+- Add BLE transport for the Meshtastic companion protocol. Implemented in firmware with NimBLE-Arduino and the official Meshtastic BLE GATT service UUIDs: `ToRadio` writes, `FromRadio` reads, and `FromNum` read/notify/write.
+- Reuse the USB companion handshake/model where possible so node DB, channel, config, and packet forwarding behavior stay consistent. Implemented: USB and BLE both feed the same `ToRadio` handler and `FromRadio` builders.
+- Add clear UI state for USB companion, BLE companion, and normal serial console mode. Implemented: Meshtastic -> Nodes now has separate USB and BLE companion rows.
+- Define what happens when USB and BLE companion clients compete for the radio. Implemented: only one external app bridge is active at a time; enabling BLE disables USB companion mode, and enabling USB turns BLE advertising/connection off.
+- Add serial diagnostics and a loopback/selftest equivalent for BLE where practical. Implemented: `companion ble on|off|test`, BLE status reporting, and a BLE mailbox/fromnum selftest.
 - Hardware-test pairing, reconnect, send, receive, and disconnect flows with the official app.
 
 Exit criteria:
 
-- A phone can pair over BLE, see the T-Deck as a Meshtastic companion radio, and send/receive through the T-Deck without USB.
+- A phone can pair over BLE, see the T-Deck as a Meshtastic companion radio, and send/receive through the T-Deck without USB. Firmware path is implemented; official app hardware validation remains open.
 - Normal on-device messaging still works when BLE companion is off.
 
 ## Phase 3 - V0.6 MeshCore Public Chat And Split Airtime Config
