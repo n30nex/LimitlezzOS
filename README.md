@@ -84,7 +84,9 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
   notification/badge) and the **sym + L** keyboard shortcut to lock the screen from anywhere.
 - ✅ **Phase 0 hardening** — persistent user settings and a **Developer Mode**
   launcher gate for Terminal.
-- **0.45** — responsiveness pass (Settings, chat log, keyboard input latency).
+- **0.45** — responsiveness pass in progress: conversation typing/backspace now
+  updates the compose pill in place; Settings, chat-log scrolling, and long-list
+  hardware regression are still open.
 - **0.5 (beta)** — **BLE companion** for Meshtastic (connect phones wirelessly).
 
 ### 🔭 Later

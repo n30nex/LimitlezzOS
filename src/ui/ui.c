@@ -488,7 +488,7 @@ void lz_ui_key(lz_key_t k, char c)
              * acts as back (the T-Deck has no dedicated back key). */
             if(S.view == LZ_V_CONVO && S.draft[0]) {
                 S.draft[strlen(S.draft) - 1] = 0;
-                lz_rebuild();
+                if(!lz_convo_draft_refresh()) lz_rebuild();
                 return;
             }
             if(S.view == LZ_V_LOCK) return;
@@ -510,7 +510,11 @@ void lz_ui_key(lz_key_t k, char c)
             }
             if(S.view == LZ_V_CONVO && c >= 32 && c < 127) {
                 size_t len = strlen(S.draft);
-                if(len < LZ_DRAFT_MAX - 1) { S.draft[len] = c; S.draft[len+1] = 0; lz_rebuild(); }
+                if(len < LZ_DRAFT_MAX - 1) {
+                    S.draft[len] = c;
+                    S.draft[len+1] = 0;
+                    if(!lz_convo_draft_refresh()) lz_rebuild();
+                }
             }
             return;
     }

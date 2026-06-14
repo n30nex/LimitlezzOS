@@ -118,6 +118,7 @@ void lz_scr_lock(lv_obj_t *root);
 void lz_scr_home(lv_obj_t *root);
 void lz_scr_messages(lv_obj_t *root);
 void lz_scr_convo(lv_obj_t *root);
+bool lz_convo_draft_refresh(void);       /* update compose text without a full rebuild */
 void lz_scr_meshtastic(lv_obj_t *root);
 void lz_scr_meshcore(lv_obj_t *root);
 void lz_scr_appstore(lv_obj_t *root);
