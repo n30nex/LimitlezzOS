@@ -44,15 +44,22 @@ extern "C" bool lz_mtc_active(void) { return g_companion; }
 #define MTC_BLE_FROMNUM_UUID   "ed9da18c-a800-4f66-a670-aa7547e34453"
 
 #define MTC_BLE_MAX_PACKET 512
-#define MTC_BLE_QUEUE_N    10
+/* Deep enough to hold a full want_config burst (my_info + metadata + channel +
+ * configs + one NodeInfo per heard node + config_complete) in one shot: the
+ * phone can't drain via onRead until handle_toradio() returns, so an overflow
+ * would drop the oldest frames (my_info!) and corrupt the app's initial sync.
+ * PSRAM-backed, so depth is cheap. Covers ~55 nodes; busier meshes truncate. */
+#define MTC_BLE_QUEUE_N    64
 
 static NimBLEServer *g_ble_server;
 static NimBLECharacteristic *g_ble_fromradio;
 static NimBLECharacteristic *g_ble_toradio;
 static NimBLECharacteristic *g_ble_fromnum;
-static bool g_ble_ready;
-static bool g_ble_enabled;
-static bool g_ble_connected;
+/* set on the main loop, read in the NimBLE task (and vice versa) — volatile so
+ * neither side caches a stale value in a register across the task boundary */
+static volatile bool g_ble_ready;
+static volatile bool g_ble_enabled;
+static volatile bool g_ble_connected;
 
 typedef struct {
     uint32_t num;
@@ -64,6 +71,26 @@ static ble_from_t *g_ble_q;
 static int g_ble_head, g_ble_count;
 static uint32_t g_ble_next_num = 1;
 static uint32_t g_ble_read_num = 1;
+
+/* The NimBLE host runs in its own FreeRTOS task: GATT onRead/onWrite callbacks
+ * fire there, while FromRadio packets are produced — and the SX1262 is driven —
+ * on the main loop. Two rules keep that safe:
+ *   1. The radio (shared SPI bus) is touched ONLY on the main loop. A phone's
+ *      ToRadio write is copied into g_ble_to_q here and replayed from
+ *      lz_mtc_ble_poll(), so handle_toradio()/lz_backend_send() never run in the
+ *      BLE task alongside the TDM scheduler (that corrupts the SPI transaction).
+ *   2. The FromRadio/ToRadio rings are shared across both tasks, so every index
+ *      manipulation is done under g_ble_mux. NimBLE calls (notify/setValue) are
+ *      made OUTSIDE the critical section — they must not run with IRQs masked. */
+static portMUX_TYPE g_ble_mux = portMUX_INITIALIZER_UNLOCKED;
+
+typedef struct {
+    uint16_t len;
+    uint8_t  data[MTC_BLE_MAX_PACKET];
+} ble_to_t;
+
+static ble_to_t *g_ble_to_q;          /* phone -> radio, drained on the main loop */
+static int g_ble_to_head, g_ble_to_count;
 
 extern "C" bool lz_mtc_ble_enabled(void) { return g_ble_enabled; }
 extern "C" bool lz_mtc_ble_connected(void) { return g_ble_connected; }
@@ -141,50 +168,52 @@ static void ble_set_fromnum(uint32_t v, bool notify)
     if(notify && g_ble_connected) g_ble_fromnum->notify(le, sizeof le);
 }
 
-static bool ble_queue_ready(void)
-{
-    if(g_ble_q) return true;
-    g_ble_q = (ble_from_t *)heap_caps_calloc(MTC_BLE_QUEUE_N, sizeof(ble_from_t),
-                                             MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if(!g_ble_q) g_ble_q = (ble_from_t *)calloc(MTC_BLE_QUEUE_N, sizeof(ble_from_t));
-    return g_ble_q != NULL;
-}
+/* rings are allocated once in lz_mtc_ble_begin() (single-threaded setup), never
+ * lazily — concurrent lazy alloc from two tasks would race on the pointer. */
+static bool ble_queue_ready(void) { return g_ble_q != NULL; }
 
 static void ble_enqueue_fromradio(const uint8_t *pb, int len)
 {
     if(!g_ble_ready || !g_ble_enabled || !g_ble_connected || len < 0) return;
     if(!ble_queue_ready()) return;
     if(len > MTC_BLE_MAX_PACKET) return;
+    uint32_t num;
+    taskENTER_CRITICAL(&g_ble_mux);
     if(g_ble_count >= MTC_BLE_QUEUE_N) {
         g_ble_head = (g_ble_head + 1) % MTC_BLE_QUEUE_N;
         g_ble_count--;
     }
     int idx = (g_ble_head + g_ble_count) % MTC_BLE_QUEUE_N;
-    g_ble_q[idx].num = g_ble_next_num++;
+    num = g_ble_next_num++;
+    g_ble_q[idx].num = num;
     g_ble_q[idx].len = (uint16_t)len;
     if(len) memcpy(g_ble_q[idx].data, pb, len);
     g_ble_count++;
-    ble_set_fromnum(g_ble_q[idx].num, true);
+    taskEXIT_CRITICAL(&g_ble_mux);
+    ble_set_fromnum(num, true);          /* NimBLE notify: outside the lock */
 }
 
 static void ble_prepare_fromradio_value(void)
 {
     if(!g_ble_fromradio) return;
-    if(!ble_queue_ready()) {
-        g_ble_fromradio->setValue((const uint8_t *)NULL, 0);
-        return;
+    static uint8_t tmp[MTC_BLE_MAX_PACKET];   /* onRead is single-task (BLE host) */
+    int tlen = -1;
+    taskENTER_CRITICAL(&g_ble_mux);
+    if(g_ble_q) {
+        int best = -1;
+        for(int i = 0; i < g_ble_count; i++) {
+            int idx = (g_ble_head + i) % MTC_BLE_QUEUE_N;
+            if(g_ble_q[idx].num >= g_ble_read_num) { best = idx; break; }
+        }
+        if(best >= 0) {
+            tlen = g_ble_q[best].len;
+            if(tlen) memcpy(tmp, g_ble_q[best].data, tlen);
+            g_ble_read_num = g_ble_q[best].num + 1;
+        }
     }
-    int best = -1;
-    for(int i = 0; i < g_ble_count; i++) {
-        int idx = (g_ble_head + i) % MTC_BLE_QUEUE_N;
-        if(g_ble_q[idx].num >= g_ble_read_num) { best = idx; break; }
-    }
-    if(best < 0) {
-        g_ble_fromradio->setValue((const uint8_t *)NULL, 0);
-        return;
-    }
-    g_ble_fromradio->setValue(g_ble_q[best].data, g_ble_q[best].len);
-    g_ble_read_num = g_ble_q[best].num + 1;
+    taskEXIT_CRITICAL(&g_ble_mux);
+    if(tlen < 0) g_ble_fromradio->setValue((const uint8_t *)NULL, 0);
+    else         g_ble_fromradio->setValue(tmp, tlen);   /* setValue: outside the lock */
 }
 
 static void send_frame(const uint8_t *pb, int len)
@@ -275,7 +304,7 @@ extern "C" void lz_mtc_forward(uint32_t from, uint32_t to, uint32_t id, uint32_t
                     uint8_t portnum, const uint8_t *payload, int plen,
                     float snr, uint32_t rxtime, int hop_limit)
 {
-    if(!g_companion) return;
+    if(!g_companion && !g_ble_connected) return;   /* forward over USB or BLE */
     /* Data sub-message: portnum=1(varint), payload=2(bytes) */
     uint8_t data[256]; int dn = 0;
     dn += pb_uint(data + dn, 1, portnum);
@@ -334,11 +363,12 @@ static void handle_toradio(const uint8_t *b, int len)
                     uint64_t k2 = 0; int s2 = 0;
                     while(p < mlen) { uint8_t x = mp[p++]; k2 |= (uint64_t)(x & 0x7F) << s2; if(!(x & 0x80)) break; s2 += 7; }
                     int f2 = k2 >> 3, w2 = k2 & 7;
-                    if(w2 == 5) { if(f2 == 2) to = mp[p] | (mp[p+1]<<8) | (mp[p+2]<<16) | ((uint32_t)mp[p+3]<<24); p += 4; }
+                    if(w2 == 5) { if(f2 == 2 && p + 4 <= mlen) to = mp[p] | (mp[p+1]<<8) | (mp[p+2]<<16) | ((uint32_t)mp[p+3]<<24); p += 4; }
                     else if(w2 == 0) { while(p < mlen && (mp[p++] & 0x80)); }
                     else if(w2 == 2) {
                         uint64_t l2 = 0; int s3 = 0;
                         while(p < mlen) { uint8_t x = mp[p++]; l2 |= (uint64_t)(x & 0x7F) << s3; if(!(x & 0x80)) break; s3 += 7; }
+                        if((uint64_t)p + l2 > (uint64_t)mlen) break;   /* untrusted BLE input: don't run past the frame */
                         if(f2 == 4) { data = mp + p; dlen = (int)l2; }
                         p += (int)l2;
                     } else break;
@@ -378,8 +408,10 @@ static void handle_toradio(const uint8_t *b, int len)
 class MtcBleServerCallbacks : public NimBLEServerCallbacks {
     void onConnect(NimBLEServer *server, NimBLEConnInfo &connInfo) override
     {
+        taskENTER_CRITICAL(&g_ble_mux);
         g_ble_connected = true;
-        g_ble_read_num = g_ble_next_num;
+        g_ble_read_num = g_ble_next_num;     /* only deliver packets queued from now */
+        taskEXIT_CRITICAL(&g_ble_mux);
         if(server) {
             server->updateConnParams(connInfo.getConnHandle(), 24, 48, 0, 180);
             server->setDataLen(connInfo.getConnHandle(), 251);
@@ -389,8 +421,11 @@ class MtcBleServerCallbacks : public NimBLEServerCallbacks {
     void onDisconnect(NimBLEServer *server, NimBLEConnInfo &connInfo, int reason) override
     {
         (void)server; (void)connInfo; (void)reason;
+        taskENTER_CRITICAL(&g_ble_mux);
         g_ble_connected = false;
         g_ble_head = g_ble_count = 0;
+        g_ble_to_head = g_ble_to_count = 0;
+        taskEXIT_CRITICAL(&g_ble_mux);
         if(g_ble_enabled) NimBLEDevice::startAdvertising();
     }
     void onMTUChange(uint16_t mtu, NimBLEConnInfo &connInfo) override
@@ -400,12 +435,24 @@ class MtcBleServerCallbacks : public NimBLEServerCallbacks {
 };
 
 class MtcBleToRadioCallbacks : public NimBLECharacteristicCallbacks {
+    /* Runs in the NimBLE host task. Copy the frame into the ToRadio ring and let
+     * lz_mtc_ble_poll() replay it on the main loop — handle_toradio() drives the
+     * radio, which must never be touched from this task. */
     void onWrite(NimBLECharacteristic *chr, NimBLEConnInfo &connInfo) override
     {
         (void)connInfo;
         std::string v = chr->getValue();
-        if(!v.empty() && v.size() <= MTC_BLE_MAX_PACKET)
-            handle_toradio((const uint8_t *)v.data(), (int)v.size());
+        if(v.empty() || v.size() > MTC_BLE_MAX_PACKET || !g_ble_to_q) return;
+        taskENTER_CRITICAL(&g_ble_mux);
+        if(g_ble_to_count >= MTC_BLE_QUEUE_N) {     /* drop oldest on overflow */
+            g_ble_to_head = (g_ble_to_head + 1) % MTC_BLE_QUEUE_N;
+            g_ble_to_count--;
+        }
+        int idx = (g_ble_to_head + g_ble_to_count) % MTC_BLE_QUEUE_N;
+        g_ble_to_q[idx].len = (uint16_t)v.size();
+        memcpy(g_ble_to_q[idx].data, v.data(), v.size());
+        g_ble_to_count++;
+        taskEXIT_CRITICAL(&g_ble_mux);
     }
 };
 
@@ -432,7 +479,9 @@ class MtcBleFromNumCallbacks : public NimBLECharacteristicCallbacks {
                           | ((uint32_t)(uint8_t)v[1] << 8)
                           | ((uint32_t)(uint8_t)v[2] << 16)
                           | ((uint32_t)(uint8_t)v[3] << 24);
+            taskENTER_CRITICAL(&g_ble_mux);
             g_ble_read_num = want;
+            taskEXIT_CRITICAL(&g_ble_mux);
         }
     }
 };
@@ -469,6 +518,15 @@ extern "C" void lz_mtc_ble_begin(void)
     g_ble_fromnum->setCallbacks(&g_ble_num_cb);
     ble_set_fromnum(0, false);
 
+    /* Allocate both rings once, here, before any BLE task can touch them (PSRAM
+     * preferred — ~10 KB total — internal heap as a fallback). */
+    g_ble_q = (ble_from_t *)heap_caps_calloc(MTC_BLE_QUEUE_N, sizeof(ble_from_t),
+                                             MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if(!g_ble_q) g_ble_q = (ble_from_t *)calloc(MTC_BLE_QUEUE_N, sizeof(ble_from_t));
+    g_ble_to_q = (ble_to_t *)heap_caps_calloc(MTC_BLE_QUEUE_N, sizeof(ble_to_t),
+                                              MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if(!g_ble_to_q) g_ble_to_q = (ble_to_t *)calloc(MTC_BLE_QUEUE_N, sizeof(ble_to_t));
+
     g_ble_server->start();
     NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
     adv->setName(name);
@@ -491,13 +549,37 @@ extern "C" void lz_mtc_ble_set_enabled(bool on)
             for(size_t i = 0; i < peers.size(); i++)
                 g_ble_server->disconnect(peers[i]);
         }
+        taskENTER_CRITICAL(&g_ble_mux);
         g_ble_connected = false;
         g_ble_head = g_ble_count = 0;
+        g_ble_to_head = g_ble_to_count = 0;
+        taskEXIT_CRITICAL(&g_ble_mux);
     }
 }
 
 extern "C" void lz_mtc_ble_poll(void)
 {
+    /* Drain phone->radio writes here, on the main loop, so the SX1262 is only
+     * ever driven from one task (never the BLE host task alongside the TDM
+     * scheduler). Copy each frame out under the lock, then transmit unlocked. */
+    if(g_ble_to_q) {
+        static uint8_t frame[MTC_BLE_MAX_PACKET];   /* main-loop only: single-task */
+        for(;;) {
+            int flen = -1;
+            taskENTER_CRITICAL(&g_ble_mux);
+            if(g_ble_to_count > 0) {
+                int idx = g_ble_to_head;
+                flen = g_ble_to_q[idx].len;
+                if(flen) memcpy(frame, g_ble_to_q[idx].data, flen);
+                g_ble_to_head = (g_ble_to_head + 1) % MTC_BLE_QUEUE_N;
+                g_ble_to_count--;
+            }
+            taskEXIT_CRITICAL(&g_ble_mux);
+            if(flen < 0) break;
+            if(flen > 0) handle_toradio(frame, flen);
+        }
+    }
+
     if(g_ble_enabled && !g_ble_connected && g_ble_ready && !NimBLEDevice::getAdvertising()->isAdvertising())
         NimBLEDevice::startAdvertising();
 }

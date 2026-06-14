@@ -155,7 +155,7 @@ static lv_obj_t *mt_node_row_cb(lv_obj_t *content, int index, int y, bool focuse
     lv_obj_set_flex_align(r, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_END);
     lz_text(r, snrs, LZ_F_SMALL, lz_snr_color(n->snr));
     lz_text(r, "SNR", LZ_F_SMALL, LZ_TEXT_3);
-    lz_nav_track(row, index + 1);   /* focus 0 is the companion toggle */
+    lz_nav_track(row, index + MT_HEADER_ROWS);   /* focus 0/1 are the companion toggles */
     return row;
 }
 
