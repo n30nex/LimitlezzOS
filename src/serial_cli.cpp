@@ -21,6 +21,7 @@ extern "C" int  lz_backend_tdm_info(char *buf, int n)     __attribute__((weak));
 extern "C" void lz_backend_mc_tune(float freq, float bw, int sf, int cr, int sync) __attribute__((weak));
 extern "C" int  lz_backend_mc_id(char *buf, int n)        __attribute__((weak));
 extern "C" bool lz_backend_mc_advert_now(bool flood)      __attribute__((weak));
+extern "C" bool lz_backend_mc_send_public(const char *text) __attribute__((weak));
 extern "C" int  lz_backend_mc_selftest(char *buf, int n)  __attribute__((weak));
 extern "C" int  lz_mtc_selftest(char *buf, int n)         __attribute__((weak));
 extern "C" void lz_touch_set_transform(int swap, int invx, int invy) __attribute__((weak));
@@ -49,6 +50,7 @@ static void cmd_help(void)
         "  rf mc <f> <bw> <sf> <cr> [sync]  tune MeshCore RF (e.g. rf mc 910.525 62.5 7 5)\n"
         "  mc                   show our MeshCore identity (pubkey)\n"
         "  mc advert [local]    broadcast a MeshCore self-advert (flood, or zero-hop)\n"
+        "  mc send <text>       send a message on the MeshCore Public channel\n"
         "  mc test              build+verify our advert (proves nodes will accept it)\n"
         "  companion on|off     USB acts as a Meshtastic-app companion radio\n"
         "  companion test       loopback-verify the companion protocol\n"
@@ -164,6 +166,14 @@ static void cmd_mc(char *args)
     if(args && strcmp(args, "test") == 0) {
         if(lz_backend_mc_selftest) { char b[160]; lz_backend_mc_selftest(b, sizeof b); Serial.println(b); }
         else Serial.println("[--] not present");
+        return;
+    }
+    if(args && strncmp(args, "send ", 5) == 0) {       /* mc send <text> -> Public channel */
+        const char *text = args + 5;
+        if(lz_backend_mc_send_public && lz_backend_mc_send_public(text))
+            Serial.println("[ok] sent on MeshCore Public");
+        else
+            Serial.println("[err] not sent (MeshCore off / radio down)");
         return;
     }
     if(lz_backend_mc_id) {

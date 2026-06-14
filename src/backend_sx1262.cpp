@@ -74,7 +74,8 @@ static bool     g_net_mt = true;          /* Meshtastic enabled */
 static bool     g_net_mc = false;         /* MeshCore enabled   */
 static int      g_active = PROF_MT;       /* profile the radio is tuned to now */
 static uint32_t g_slot_until;             /* millis() when the current dwell ends (0 = no switching) */
-static const uint32_t SLOT_MS = 500;      /* dwell per profile when both are on */
+static uint32_t g_rx_guard_until;         /* hard cap for deferring a switch while a packet is mid-RX */
+static const uint32_t SLOT_MS = 250;      /* dwell per profile when both on — short so we switch fast */
 static uint32_t g_rx_mt, g_rx_mc;         /* per-network packet counts */
 static uint32_t g_switches;               /* TDM profile switches */
 
@@ -92,6 +93,16 @@ static void apply_profile(int which)
     radio.setPreambleLength(p->preamble);
     radio.startReceive();
     g_active = which;
+}
+
+/* tune to a profile and (re)start its dwell. g_rx_guard_until caps how long the
+ * NEXT switch may be deferred to finish an in-flight packet — roughly the max
+ * airtime of a frame on that profile (SF11/BW250 is far slower than SF7/BW62.5). */
+static void slot_begin(int which, uint32_t now)
+{
+    apply_profile(which);
+    g_slot_until = now + SLOT_MS;
+    g_rx_guard_until = g_slot_until + (which == PROF_MT ? 2000u : 600u);
 }
 
 /* dedup ring of recently-seen (from,id) so we don't reprocess/rebroadcast */
@@ -347,8 +358,23 @@ static void handle_rx_mc(void)
     if(!mc_parse(buf, len, &p)) return;
     if(p.payload_type == MC_PAYLOAD_ADVERT) {
         mc_advert_t a;
-        if(mc_advert_decode(&p, &a))
+        if(mc_advert_decode(&p, &a)) {
             lz_core_on_mc_node(a.pubkey, a.has_name ? a.name : NULL, a.adv_type, snr);
+            Serial.printf("[mc] ADVERT %s (snr %.1f)\n", a.has_name ? a.name : "(noname)", snr);
+        }
+    } else if(p.payload_type == MC_PAYLOAD_GRP_TXT) {
+        /* V0.6: try the default Public channel. MAC mismatch => some other channel. */
+        mc_group_msg_t g;
+        if(mc_group_decode(&p, MC_PUBLIC_SECRET, &g)) {
+            /* M2: prove reception over serial. Unified-inbox threading is M5. */
+            Serial.printf("[mc] Public  %s: %s  (snr %.1f)\n",
+                          g.sender[0] ? g.sender : "?", g.text, snr);
+        } else {
+            Serial.printf("[mc] GRP_TXT chan=%02x (not Public / undecodable)\n",
+                          mc_group_channel_hash(&p));
+        }
+    } else {
+        Serial.printf("[mc] %s (encrypted, snr %.1f)\n", mc_type_name(p.payload_type), snr);
     }
 }
 
@@ -437,7 +463,7 @@ static void send_routing_ack(uint32_t to, uint32_t req_id)
 extern "C" void lz_backend_request_nodeinfo(uint32_t to)
 {
     if(!g_ok || !g_net_mt || to == MT_BROADCAST) return;
-    if(g_active != PROF_MT) { apply_profile(PROF_MT); g_slot_until = millis() + SLOT_MS; }
+    if(g_active != PROF_MT) slot_begin(PROF_MT, millis());
     send_nodeinfo(to, true);
 }
 
@@ -514,6 +540,20 @@ static bool broadcast_mc_advert(bool flood)
     return tx_frame(frame, n);
 }
 
+/* send a text on the MeshCore default Public channel (GRP_TXT). Retunes to the
+ * MeshCore profile for the transmit; the scheduler resumes round-robin after. */
+extern "C" bool lz_backend_mc_send_public(const char *text)
+{
+    if(!g_ok || !g_net_mc || !text || !text[0]) return false;
+    if(g_active != PROF_MC) slot_begin(PROF_MC, millis());
+    const lz_identity_t *id = lz_svc_identity();
+    uint8_t frame[200];
+    int n = mc_group_encode(frame, sizeof frame, MC_PUBLIC_SECRET,
+                            lz_svc_epoch(), id->long_name, text);
+    if(n <= 0) return false;
+    return tx_frame(frame, n);
+}
+
 /* ================= backend contract ================= */
 
 void lz_backend_init(void)
@@ -551,20 +591,29 @@ void lz_backend_loop(void)
 {
     if(!g_ok) return;
 
-    /* TDM: when both networks are on, hand the radio to the other profile once
-     * the current dwell expires (listen -> retune -> listen, round-robin) */
     uint32_t now = millis();
-    if(g_net_mt && g_net_mc && g_slot_until && now >= g_slot_until) {
-        apply_profile(g_active == PROF_MT ? PROF_MC : PROF_MT);
-        g_switches++;
-        g_slot_until = now + SLOT_MS;
-    }
 
-    /* a received packet belongs to whichever profile we're tuned to right now */
+    /* Process a completed packet FIRST, on the profile we received it on: a retune
+     * (apply_profile -> standby) would drop the just-received frame still in the
+     * radio buffer. */
     if(g_rx_flag) {
         g_rx_flag = false;
         if(g_active == PROF_MT) handle_rx_mt();
         else                    handle_rx_mc();
+    }
+
+    /* TDM: hand the radio to the other profile when the dwell expires — but never
+     * mid-packet. If a valid LoRa header is mid-reception, hold the slot open and
+     * switch the instant the packet finishes (RX_DONE) or the guard elapses, so a
+     * stuck/aborted header can't freeze the cycle. */
+    if(g_net_mt && g_net_mc && g_slot_until && now >= g_slot_until) {
+        uint16_t irq = radio.getIrqStatus();
+        bool rx_in_flight = (irq & RADIOLIB_SX126X_IRQ_HEADER_VALID) &&
+                           !(irq & RADIOLIB_SX126X_IRQ_RX_DONE);
+        if(!(rx_in_flight && now < g_rx_guard_until)) {
+            slot_begin(g_active == PROF_MT ? PROF_MC : PROF_MT, now);
+            g_switches++;
+        }
     }
 
     /* re-request keys for queued DMs every ~4s until they arrive; give up after
@@ -606,7 +655,7 @@ bool lz_backend_send(lz_mt_packet_t *p)
     /* a Meshtastic frame must go out on the MT profile; if a TDM slot has us on
      * MeshCore right now, retune to MT for the transmit (the scheduler resumes
      * round-robin on its next tick) */
-    if(g_active != PROF_MT) { apply_profile(PROF_MT); g_slot_until = millis() + SLOT_MS; }
+    if(g_active != PROF_MT) slot_begin(PROF_MT, millis());
 
     /* wrap the service payload in a Data protobuf, encrypt, frame, transmit */
     mt_data_t d;
@@ -693,8 +742,7 @@ extern "C" void lz_backend_set_networks(bool mt, bool mc)
     g_net_mc = mc;
     if(!g_ok) return;
     if(mt && mc) {                       /* share the radio, start on Meshtastic */
-        apply_profile(PROF_MT);
-        g_slot_until = millis() + SLOT_MS;
+        slot_begin(PROF_MT, millis());
     } else if(mt) {
         apply_profile(PROF_MT); g_slot_until = 0;
     } else if(mc) {
