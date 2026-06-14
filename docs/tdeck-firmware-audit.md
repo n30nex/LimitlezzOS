@@ -22,9 +22,10 @@ Primary source files reviewed:
 
 | Check | Result | Notes |
 | --- | --- | --- |
-| `pio run -e tdeck` | Artifact produced, process not cleanly completed | The first run failed on a Windows object-file lock inside LVGL. A single-threaded rerun emitted `.pio/build/tdeck/firmware.elf` and `.pio/build/tdeck/firmware.bin`, then the wrapper timed out and had to be stopped. This is evidence that compile/link can complete, but the local build workflow still needs cleanup. |
-| T-Deck binary size | `firmware.bin` 1,276,528 bytes | Direct toolchain size summary: `text=915253`, `data=377136`, `bss=1131809`, `dec=2424198`. |
-| `pio run -e native` | Failed on host setup | The native simulator depends on `sdl2-config`, which is not available in this Windows workspace. The simulator selftest and screenshot flow were not run. |
+| `pio run -e tdeck` | Passed on Windows | Firmware builds cleanly after the settings-persistence pass. Current size report: RAM 245,744 bytes / 327,680 bytes (75.0%); flash 1,277,609 bytes / 5,242,880 bytes (24.4%). |
+| `pio run -e tdeck -t upload --upload-port COM8` | Flash verified on COM8 | COM8 is an ESP32-S3 USB Serial/JTAG device. The ROM loader verifies each flashed image. This board can remain in `ESP-ROM` download mode after upload, so post-flash CLI checks may require a physical RESET/power-cycle first. |
+| COM8 serial smoke | Passed after power-cycle | Commands validated: `id`, `sys`, `net`, `rf`, `stats`, `wifi`, and `companion test`. The board booted LimitlezzOS, mounted `/sd/limitlezz`, initialized SX1262 with `RadioLib begin=0`, and companion loopback reported `PASS`. |
+| `pio run -e native` | Local-only validation | Host SDL2 prerequisites were satisfied outside the committed change. Native simulator selftest and screenshots passed locally, but repo-level SDL2 setup/CI remains Phase 0 work. |
 | CI/workflows | Not present | No `.github` workflow directory exists. |
 
 ## Executive Summary
@@ -139,7 +140,7 @@ The UI still mixes real product surfaces with demos/prototypes. The biggest exam
 | P0 | App system | App Store is disabled in Home and uses mutable demo rows/timers. Lua VM, manifest loading, install, catalog, SHA verification, permissions, and app launch are absent. | The repo advertises an app ecosystem, but the implementation is currently a prototype. | Build the app runtime and local app scanner before network catalog polish. |
 | P1 | Build configuration | PlatformIO reports the generic `esp32-s3-devkitc-1` N8/no-PSRAM board while the project assumes 16 MB flash, OTA partitions, and PSRAM buffers. | Upload/boot/memory behavior may diverge from the real T-Deck unless the board config is pinned to the actual hardware. | Verify LilyGO T-Deck flash/PSRAM settings and encode them in `platformio.ini`; add CI size/build checks. |
 | P1 | Build workflow | T-Deck build emitted artifacts locally but hit Windows file-lock/timeouts. Native simulator cannot run without SDL2 tooling. | Contributors cannot rely on a single clean command across common host setups. | Add CI plus documented Windows/macOS/Linux prerequisites; make simulator dependency detection fail with a clear message. |
-| P1 | Persistence | Identity, Wi-Fi, touch calibration, keys, nodes, threads, and logs persist, but most settings do not. Wi-Fi and keys are plaintext on SD. | User settings reset across reboot; credentials and keys are exposed if the SD card is read. | Add settings persistence; move credentials to NVS or encrypted store; add optional device PIN/password before encrypting all local data. |
+| P1 | Persistence | Identity, Wi-Fi, touch calibration, keys, nodes, threads, logs, and user settings persist. Wi-Fi and keys are still plaintext on SD. | Credentials and keys are exposed if the SD card is read. | Move credentials to NVS or encrypted store; add optional device PIN/password before encrypting all local data. |
 | P1 | Delivery status | Sent DMs track `SENDING/DELIVERED/FAILED` only in the open in-memory tail; `lz_svc_send_text` does not act on the immediate `lz_backend_send` return value. | Delivery UI can be wrong after reopen/reboot or after immediate TX failure. | Persist sent-message status, record backend failures, and add retransmit/ACK tests. |
 | P2 | App launcher | Terminal is on the main home screen; App Store is shown but disabled. | Product simplicity goal is undermined by exposing developer tools while hiding the app ecosystem. | Introduce Developer Mode and move Terminal/diagnostics behind it; make App Store real or remove it until usable. |
 | P2 | Files | Files screen renders static sample rows from `LZ_FILES`. | It looks like a file browser but does not inspect SD/appfs. | Implement a read-only SD/appfs browser, then gated file actions. |
@@ -151,7 +152,7 @@ The UI still mixes real product surfaces with demos/prototypes. The biggest exam
 
 1. Make the build trustworthy: real T-Deck board config, CI, simulator setup docs, firmware size budget, and a repeatable release command.
 2. Normalize status language: "working", "partial", "prototype", "planned", and "not hardware verified in this audit".
-3. Finish Meshtastic release polish before expanding scope: unread highlighting, badge, mute/silence, persistent delivery state, ACK/retransmit, and settings persistence.
+3. Finish Meshtastic release polish before expanding scope: unread highlighting, badge, mute/silence, persistent delivery state, and ACK/retransmit.
 4. Bring MeshCore online behind tests, not optimism: TDM soak, ADVERT interop, public channel, DM/group message decode/send, and unified inbox behavior.
 5. Turn App Store into an actual platform incrementally: local SD app scanning first, then Lua sandbox, then network catalog/download/update.
 6. Hide advanced tools behind Developer Mode to keep the primary OS simple.

@@ -100,6 +100,7 @@ static void cmd_tz(char *args)
     if(idx < 0 || idx >= lz_tz_count()) { Serial.println("[err] unknown timezone"); return; }
     S.settings.tz_idx = idx;
     lz_tz_apply(idx);
+    lz_settings_save();
     lz_rebuild();
     Serial.printf("[ok] timezone = %s\n", lz_tz_name(idx));
     cmd_time();
@@ -108,6 +109,7 @@ static void cmd_tz(char *args)
 static void apply_networks(void)
 {
     if(lz_backend_set_networks) lz_backend_set_networks(S.net_mt, S.net_mc);
+    lz_settings_save();
     lz_rebuild();
 }
 
@@ -117,7 +119,10 @@ static void cmd_net(char *args)
     if(args && sscanf(args, "%7s %7s", which, state) == 2) {
         bool on = strcmp(state, "on") == 0;
         if(strcmp(which, "mt") == 0)      S.net_mt = on;
-        else if(strcmp(which, "mc") == 0) S.net_mc = on;
+        else if(strcmp(which, "mc") == 0) {
+            if(!LZ_MESHCORE_ENABLED) { Serial.println("[err] MeshCore is gated in this build"); return; }
+            S.net_mc = on;
+        }
         else { Serial.println("usage: net mt|mc on|off"); return; }
         apply_networks();
     }

@@ -88,6 +88,7 @@ void lz_go(lz_view_t v);
 void lz_back(void);
 void lz_rebuild(void);
 void lz_apply_networks(void);   /* push net_mt/net_mc to the radio TDM scheduler */
+void lz_settings_save(void);    /* persist user-facing settings after a change */
 
 /* Registered by each screen during build */
 void lz_nav_set(int cols, int count, void (*activate)(int idx));

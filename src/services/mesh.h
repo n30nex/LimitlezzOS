@@ -118,6 +118,22 @@ bool lz_svc_needs_onboarding(void);                       /* no saved identity y
 void lz_svc_set_identity(const char *long_name, const char *short_name);
 void lz_svc_set_node_num(uint32_t num);                   /* real node id (from MAC); call before init */
 
+/* ---- persisted user settings ---- */
+typedef struct {
+    bool net_mt, net_mc;
+    int  tx;
+    bool gps;
+    int  bright;
+    int  timeout;
+    int  kb_light;
+    int  tz_idx;
+    bool clock24;
+    bool save;
+} lz_user_settings_t;
+
+void lz_store_save_settings(const lz_user_settings_t *s);
+bool lz_store_load_settings(lz_user_settings_t *s);
+
 /* ---- time ---- */
 void lz_svc_set_time(uint32_t epoch);                     /* set UTC (e.g. NTP) */
 bool lz_svc_time_synced(void);

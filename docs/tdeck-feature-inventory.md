@@ -78,7 +78,7 @@ Status labels:
 | Meshtastic manager | Functional/Partial | identity card, virtualized node list, channels tab, companion toggle | Emergency channel row is disabled. |
 | MeshCore manager | Prototype/Partial | "Coming soon" unless gate is flipped; deeper screen exists behind gate | Do not enable until MeshCore message path works. |
 | Contacts/detail | Functional/Partial | contacts list, add contact, messageable role check | Trace action is a no-op; MeshCore contacts locked. |
-| Settings | Functional/Partial | network toggles, Wi-Fi, brightness, time, system, touch calibration | Most settings are not persisted. |
+| Settings | Functional/Partial | network toggles, Wi-Fi, brightness, time, system, touch calibration, `settings.cfg` persistence | Add migration/versioning if the settings schema grows. |
 | Wi-Fi setup | Functional, needs validation | async scan/connect, saved SSID/password, auto-connect | Credentials are plaintext on SD; only one saved network. |
 | System/battery page | Functional/Partial | live stats and battery arc | Hardware values need calibration/validation. |
 | App Store | Prototype | `LZ_STORE` static catalog and timer-based GET -> OPEN | Disabled from Home; no catalog, download, install, manifest, or launch. |

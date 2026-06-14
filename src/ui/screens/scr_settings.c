@@ -90,6 +90,7 @@ static bool settings_disabled(int idx) { return idx == 1 && !LZ_MESHCORE_ENABLED
 
 static void settings_activate(int f)
 {
+    bool persist = true;
     switch(f) {
         case 0: S.net_mt = !S.net_mt; lz_apply_networks(); break;
         case 1: if(!LZ_MESHCORE_ENABLED) return;   /* MeshCore locked: "Coming soon" */
@@ -106,8 +107,9 @@ static void settings_activate(int f)
         case 11: S.settings.save = !S.settings.save; break;
         case 12: lz_go(LZ_V_SYSTEM); return;
         case 13: S.cal_step = 0; lz_go(LZ_V_TOUCHCAL); return;
-        default: return;
+        default: persist = false; break;
     }
+    if(persist) lz_settings_save();
     lz_rebuild();
 }
 
@@ -538,6 +540,7 @@ static void tzpick_activate(int idx)
     if(idx < 0 || idx >= TZ_COUNT) return;
     S.settings.tz_idx = idx;
     lz_tz_apply(idx);
+    lz_settings_save();
     lz_back();
 }
 

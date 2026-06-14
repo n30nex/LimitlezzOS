@@ -37,6 +37,8 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
 - **Message history** — persists across leaving a chat and across reboots (SD card).
 - **Compose** — long drafts scroll within the input box instead of overflowing.
 - **Wi-Fi** — scan, connect, saved password, auto-connect toggle, forget.
+- **User settings** — network toggles, brightness, sleep timeout, keyboard
+  light, TX power, time zone, clock format, GPS toggle, and power saving persist.
 - **Battery & charging** — live percentage + charge state; System page telemetry.
 - **Keyboard backlight** — Auto / On / Off (I²C).
 - **Sleep & power saving** — idle dim/sleep, CPU down-clock.
@@ -111,7 +113,7 @@ src/ui/ui.{h,c}        state machine, nav stack, trackball focus engine, shared 
 src/ui/screens/        the 13 screens (read live data from the mesh service)
 src/ui/fonts/          Material Symbols Rounded subsets baked to LVGL C arrays
 src/services/mesh.{h,c}  mesh service: node table, thread index, send/receive API
-src/services/store.c   persistent message store (append-only logs + thread index)
+src/services/store.c   persistent store (messages, threads, nodes, settings)
 src/services/mtproto.* Meshtastic wire codec: header, AES-CTR, channel hash, protobuf
 src/services/aes_min.h portable AES-128/256-CTR for the simulator
 src/services/mesh_seed.c demo mesh (matches the design's sample data)
@@ -183,11 +185,11 @@ typing goes into the conversation composer.
 pio run -e tdeck -t upload                     # flash over USB-C
 ```
 
-Current footprint: ~1.2 MB flash (23% of the 5 MB OTA slot), 195 KB static RAM
-(61%) — the rest of RAM is PSRAM-backed double framebuffers. Message history,
-identity, the node database, and saved Wi-Fi credentials all live on the SD
-card (`/sd/limitlezz`); without a card the OS runs RAM-only and seeds the demo
-mesh.
+Current footprint: ~1.22 MB flash (24% of the 5 MB OTA slot), 240 KB static RAM
+(75%) — the rest of RAM is PSRAM-backed double framebuffers. Message history,
+identity, user settings, the node database, and saved Wi-Fi credentials all live
+on the SD card (`/sd/limitlezz`); without a card the OS runs RAM-only and seeds
+the demo mesh.
 
 ## What's implemented (UI portion of spec Stage 1/2)
 
@@ -217,7 +219,8 @@ mesh.
   **time zone picker** (named zones — EST, PST… — not raw UTC offsets) and a
   **manual clock editor**, with **NTP auto-sync** over Wi-Fi; **System & battery**
   page with a live arc gauge, stat bars, self-updating uptime, and battery-health
-  readout derived from resting voltage.
+  readout derived from resting voltage. User-facing settings save to
+  `settings.cfg` and are applied again at boot.
 - **Wi-Fi** — scan, join (masked password entry), remembers one network's
   credentials on the SD card, an **auto-connect** toggle (rejoin on boot / on
   reappearance / after a drop, or never), and long-press-to-forget so you can
@@ -234,8 +237,8 @@ mesh.
   Ed25519 MeshCore uses). MeshCore US profile: 910.525 MHz / 62.5 kHz / SF7 /
   CR4-5 / sync PRIVATE.
 - **Real status everywhere** — the status bar clock, battery %, and charge
-  state are live; identity, node table, and message history persist across
-  reboots; nothing on screen is hard-coded demo data on hardware.
+  state are live; identity, settings, node table, and message history persist
+  across reboots; nothing on screen is hard-coded demo data on hardware.
 - **Serial console** — a USB-CDC command shell (`help`, `time`, `tz`, `net`,
   `rf`, `nodes`, `send`, `stats`, `wifi`, `sys`, …) for control + diagnostics.
 - **Terminal / Files** — mono console with blinking cursor; /sdcard listing.
@@ -247,7 +250,7 @@ Stage 1 (Meshtastic-only) is the focus, per the spec's hard staging rule
 UI, the messaging data model wired to a real Meshtastic stack, persistent
 history/identity/nodes, the SX1262 radio backend (text + NodeInfo on LongFast,
 dedup, managed flood), live clock (manual + NTP + named time zones), Wi-Fi with
-saved credentials and auto-connect, keyboard backlight, and real
+saved credentials and auto-connect, saved user settings, keyboard backlight, and real
 battery/system telemetry.
 
 **Stage 2 (MeshCore) has landed**: MeshCore runs as a second RF profile,
@@ -314,3 +317,6 @@ input, the backlight goes dark and the OS returns to the lock screen. Waking is
 two-step — the **first** touch/key/click only lights the screen (still locked),
 and a **second** one unlocks — so a bump in your pocket can't open the device.
 The Brightness slider drives the same LEDC backlight live.
+Brightness, sleep timeout, keyboard light mode, clock format, time zone, TX
+power, network toggles, GPS toggle, and power-save mode are restored on boot
+from `settings.cfg` when the SD-backed store is available.

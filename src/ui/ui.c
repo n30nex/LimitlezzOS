@@ -74,12 +74,21 @@ static bool (*g_skip)(int idx);  /* indices the focus ring must skip over */
 static lv_obj_t *g_scroll;
 static lv_obj_t *g_focus_obj;   /* object to scroll into view */
 
-/* ================= engine ================= */
-
-void lz_ui_init(lv_obj_t *root)
+static int clamp_i(int v, int lo, int hi)
 {
-    memset(&S, 0, sizeof(S));
-    S.view = lz_svc_needs_onboarding() ? LZ_V_ONBOARD : LZ_V_LOCK;
+    if(v < lo) return lo;
+    if(v > hi) return hi;
+    return v;
+}
+
+static int tx_dbm_for_idx(int idx)
+{
+    static const int TX_DBM[4] = { 2, 8, 17, 22 };
+    return TX_DBM[clamp_i(idx, 0, 3)];
+}
+
+static void settings_defaults(void)
+{
     S.net_mt = true;
     S.net_mc = false;         /* MeshCore off by default; enabling it starts TDM */
     S.settings.gps = false;   /* off by default to save battery (GPS unused in Alpha) */
@@ -87,13 +96,67 @@ void lz_ui_init(lv_obj_t *root)
     S.settings.save = false;
     S.settings.bright = 74;
     S.settings.timeout = 1;   /* 30s */
-    S.settings.tx = 3;        /* Max (22 dBm) — matches the radio's init power */
+    S.settings.tx = 3;        /* Max (22 dBm) - matches the radio's init power */
     S.settings.kb_light = 0;  /* Auto */
     S.settings.tz_idx = 0;    /* Eastern (EST/EDT, DST-aware) by default */
-    lz_tz_apply(0);
-    S.settings.clock24 = false;   /* 12-hour (AM/PM) by default */
-    lz_svc_set_clock24(false);
-    lz_apply_networks();      /* push the initial Meshtastic/MeshCore schedule to the radio */
+    S.settings.clock24 = false;
+}
+
+static void settings_sanitize(void)
+{
+    if(!LZ_MESHCORE_ENABLED) S.net_mc = false;
+    S.settings.tx = clamp_i(S.settings.tx, 0, 3);
+    S.settings.bright = clamp_i(S.settings.bright, 5, 100);
+    S.settings.timeout = clamp_i(S.settings.timeout, 0, 4);
+    S.settings.kb_light = clamp_i(S.settings.kb_light, 0, 2);
+    S.settings.tz_idx = clamp_i(S.settings.tz_idx, 0, lz_tz_count() - 1);
+}
+
+static void settings_load(void)
+{
+    lz_user_settings_t p;
+    if(!lz_store_load_settings(&p)) return;
+    S.net_mt = p.net_mt;
+    S.net_mc = p.net_mc;
+    S.settings.tx = p.tx;
+    S.settings.gps = p.gps;
+    S.settings.bright = p.bright;
+    S.settings.timeout = p.timeout;
+    S.settings.kb_light = p.kb_light;
+    S.settings.tz_idx = p.tz_idx;
+    S.settings.clock24 = p.clock24;
+    S.settings.save = p.save;
+    settings_sanitize();
+}
+
+void lz_settings_save(void)
+{
+    settings_sanitize();
+    lz_user_settings_t p = {
+        S.net_mt, S.net_mc, S.settings.tx, S.settings.gps,
+        S.settings.bright, S.settings.timeout, S.settings.kb_light,
+        S.settings.tz_idx, S.settings.clock24, S.settings.save,
+    };
+    lz_store_save_settings(&p);
+}
+
+static void settings_apply_runtime(void)
+{
+    lz_tz_apply(S.settings.tz_idx);
+    lz_svc_set_clock24(S.settings.clock24);
+    lz_apply_networks();
+    lz_backend_set_tx_power(tx_dbm_for_idx(S.settings.tx));
+}
+
+/* ================= engine ================= */
+
+void lz_ui_init(lv_obj_t *root)
+{
+    memset(&S, 0, sizeof(S));
+    S.view = lz_svc_needs_onboarding() ? LZ_V_ONBOARD : LZ_V_LOCK;
+    settings_defaults();
+    settings_load();
+    settings_apply_runtime();
     g_root = root;
     lv_obj_remove_style_all(root);
     lv_obj_set_size(root, LZ_W, LZ_H);
@@ -725,4 +788,5 @@ void lz_settings_bright_adjust(int delta)
     if(b > 100) b = 100;
     S.settings.bright = b;
     lz_apply_brightness();               /* live backlight update on hardware */
+    lz_settings_save();
 }

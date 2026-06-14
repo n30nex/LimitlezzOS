@@ -219,6 +219,51 @@ bool lz_store_load_identity(char *longn, int ln, char *shortn, int sn)
     return ok;
 }
 
+/* ---- user settings ---- */
+
+void lz_store_save_settings(const lz_user_settings_t *s)
+{
+    if(!g_persist || !s) return;
+    char path[128], tmp[132];
+    path_for(path, sizeof path, "settings.cfg");
+    snprintf(tmp, sizeof tmp, "%s.tmp", path);
+    FILE *f = fopen(tmp, "w");
+    if(!f) return;
+    fprintf(f, "1 %d %d %d %d %d %d %d %d %d %d\n",
+            s->net_mt ? 1 : 0, s->net_mc ? 1 : 0, s->tx, s->gps ? 1 : 0,
+            s->bright, s->timeout, s->kb_light, s->tz_idx,
+            s->clock24 ? 1 : 0, s->save ? 1 : 0);
+    fclose(f);
+    remove(path);
+    rename(tmp, path);
+}
+
+bool lz_store_load_settings(lz_user_settings_t *s)
+{
+    if(!g_persist || !s) return false;
+    char path[128];
+    path_for(path, sizeof path, "settings.cfg");
+    FILE *f = fopen(path, "r");
+    if(!f) return false;
+    int ver, mt, mc, tx, gps, bright, timeout, kb, tz, clock24, save;
+    bool ok = fscanf(f, "%d %d %d %d %d %d %d %d %d %d %d",
+                     &ver, &mt, &mc, &tx, &gps, &bright, &timeout, &kb, &tz,
+                     &clock24, &save) == 11 && ver == 1;
+    fclose(f);
+    if(!ok) return false;
+    s->net_mt = mt != 0;
+    s->net_mc = mc != 0;
+    s->tx = tx;
+    s->gps = gps != 0;
+    s->bright = bright;
+    s->timeout = timeout;
+    s->kb_light = kb;
+    s->tz_idx = tz;
+    s->clock24 = clock24 != 0;
+    s->save = save != 0;
+    return true;
+}
+
 /* ---- saved Wi-Fi (one network: ssid|password|autoconnect) ---- */
 
 void lz_store_save_wifi(const char *ssid, const char *pass, int autoconnect)
