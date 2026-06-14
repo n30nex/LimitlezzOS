@@ -540,18 +540,47 @@ static bool broadcast_mc_advert(bool flood)
     return tx_frame(frame, n);
 }
 
-/* send a text on the MeshCore default Public channel (GRP_TXT). Retunes to the
- * MeshCore profile for the transmit; the scheduler resumes round-robin after. */
-extern "C" bool lz_backend_mc_send_public(const char *text)
+/* MeshCore group text is length-limited on air; longer messages get clipped by
+ * peers/repeaters. Keep each frame's body ("name: text") under this. */
+#define MC_PUBLIC_BODY_MAX 140
+
+static bool mc_send_one(const lz_identity_t *id, const char *text)
 {
-    if(!g_ok || !g_net_mc || !text || !text[0]) return false;
     if(g_active != PROF_MC) slot_begin(PROF_MC, millis());
-    const lz_identity_t *id = lz_svc_identity();
     uint8_t frame[200];
     int n = mc_group_encode(frame, sizeof frame, MC_PUBLIC_SECRET,
                             lz_svc_epoch(), id->long_name, text);
     if(n <= 0) return false;
     return tx_frame(frame, n);
+}
+
+/* send a text on the MeshCore default Public channel (GRP_TXT). Long messages
+ * are auto-split into "(i/n) ..." parts so none gets clipped at the cap. */
+extern "C" bool lz_backend_mc_send_public(const char *text)
+{
+    if(!g_ok || !g_net_mc || !text || !text[0]) return false;
+    const lz_identity_t *id = lz_svc_identity();
+    int budget = MC_PUBLIC_BODY_MAX - (int)strlen(id->long_name) - 2;  /* room after "name: " */
+    if(budget < 16) budget = 16;
+    int tlen = (int)strlen(text);
+
+    if(tlen <= budget) return mc_send_one(id, text);          /* fits in one frame */
+
+    int slice = budget - 6;                                   /* leave room for "(i/n) " */
+    if(slice < 8) slice = 8;
+    int nparts = (tlen + slice - 1) / slice;
+    if(nparts > 9) nparts = 9;                                /* single-digit markers; chat is short */
+    bool ok = true;
+    for(int i = 0; i < nparts; i++) {
+        char part[180];
+        int off = i * slice, n = tlen - off;
+        if(n > slice) n = slice;
+        if(n < 0) n = 0;
+        snprintf(part, sizeof part, "(%d/%d) %.*s", i + 1, nparts, n, text + off);
+        ok = mc_send_one(id, part) && ok;
+        if(i + 1 < nparts) delay(400);                        /* spacing so parts don't self-collide */
+    }
+    return ok;
 }
 
 /* ================= backend contract ================= */
