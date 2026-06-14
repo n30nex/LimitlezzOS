@@ -177,7 +177,12 @@ disabled (spec §6.5) and persists across reboots via the SD-backed store.
 
 ## Build & run
 
-**Simulator** (needs SDL2: `brew install sdl2`):
+**Simulator** (uses the same UI code as firmware):
+
+- Linux: install SDL2 development files (`libsdl2-dev`, or distro equivalent).
+- macOS: install SDL2 (`brew install sdl2`).
+- Windows: run `powershell -ExecutionPolicy Bypass -File scripts\ensure_sdl2_windows.ps1`
+  once to install the local `.deps` SDL2 bundle.
 
 ```sh
 pio run -e native
@@ -194,7 +199,28 @@ typing goes into the conversation composer.
 
 ```sh
 pio run -e tdeck -t upload                     # flash over USB-C
+python scripts/tdeck_smoke.py --port COM8      # Windows maintainer rig
+python scripts/tdeck_smoke.py --port /dev/ttyACM0
 ```
+
+On the Windows COM8 T-Deck, the ROM stub upload path can be flaky. Use
+`python scripts/tdeck_smoke.py --port COM8 --no-stub-upload` to build, flash
+through PlatformIO's packaged `esptool.py --no-stub`, and run the serial CLI
+smoke in one pass. PowerShell users can run the same flow with
+`powershell -ExecutionPolicy Bypass -File scripts\tdeck_smoke.ps1 -Port COM8 -NoStubUpload`.
+
+**GitHub Actions artifact → local T-Deck** (fast remote build, local hardware proof):
+
+```sh
+git push fork HEAD
+python scripts/fetch_tdeck_artifact.py
+python scripts/tdeck_smoke.py --port COM8 --no-stub-upload --skip-build --artifact-dir .pio/ci-artifacts/tdeck
+python scripts/tdeck_smoke.py --port /dev/ttyACM0 --no-stub-upload --skip-build --artifact-dir .pio/ci-artifacts/tdeck
+```
+
+The fetch helper uses the current branch and current commit by default, then
+downloads the matching successful `Firmware CI` artifact with `gh`. It refuses
+to use an older run unless `--allow-latest-success` is passed.
 
 CI runs the native simulator build, native codec selftest, T-Deck firmware build,
 and T-Deck size report in `.github/workflows/firmware.yml`, then uploads the

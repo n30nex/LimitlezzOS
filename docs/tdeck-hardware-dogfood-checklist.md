@@ -16,8 +16,13 @@ dogfood belong to the later roadmap phases.
 
 - Record the git commit, branch, and dirty/clean state.
 - Build a fresh artifact with `pio run -e tdeck`.
+- On slow local hosts, prefer the GitHub Actions artifact for the exact pushed
+  commit: `python scripts/fetch_tdeck_artifact.py`, then flash with
+  `python scripts/tdeck_smoke.py --no-stub-upload --skip-build --artifact-dir .pio/ci-artifacts/tdeck --port COM8`.
 - Record the firmware artifact path, size, and timestamp.
-- Confirm a native simulator sanity pass with `.pio\build\native\program.exe --selftest`.
+- Confirm a native simulator sanity pass:
+  - Linux/macOS: `pio run -e native && .pio/build/native/program --selftest`
+  - Windows: `pio run -e native; .pio\build\native\program.exe --selftest`
 - Confirm the SD card is mounted or deliberately test RAM-only behavior.
 - Confirm peer devices are on the intended Meshtastic channel and can exchange messages with each other.
 
@@ -25,7 +30,10 @@ dogfood belong to the later roadmap phases.
 
 - Flash with `pio run -e tdeck -t upload`.
 - If the normal upload path is flaky on the local T-Deck/host pair, fall back to
-  the known reliable Windows direct-flash path with `esptool.py --no-stub`.
+  the direct-flash helper with `python scripts/tdeck_smoke.py --port COM8 --no-stub-upload`
+  or the same command with the Linux serial device path.
+- For serial CLI smoke without flashing, run `python scripts/tdeck_smoke.py --skip-upload --port COM8`
+  on the Windows rig or pass the Linux/macOS device path such as `/dev/ttyACM0`.
 - Open the USB console at 115200 baud.
 - Capture the boot banner and every `[ok]` or failure line.
 - Confirm display, touch, keyboard, trackball, SD, SX1262, Wi-Fi state, battery, and time source are reported.

@@ -1,5 +1,8 @@
 .pio/
 .vscode/
+.deps/
+__pycache__/
+*.pyc
 *.bmp
 lzdata/
 lzdata_shots/
