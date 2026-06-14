@@ -146,6 +146,102 @@ int mc_group_encode(uint8_t *frame, int cap, const uint8_t secret16[16],
     return fl;
 }
 
+void mc_dm_ack4(uint8_t out4[4], uint32_t ts, uint8_t type_byte,
+                const char *text, const uint8_t sender_pub[32])
+{
+    uint8_t pre[5 + 192]; int n = 0;
+    pre[n++] = (uint8_t)(ts);
+    pre[n++] = (uint8_t)(ts >> 8);
+    pre[n++] = (uint8_t)(ts >> 16);
+    pre[n++] = (uint8_t)(ts >> 24);
+    pre[n++] = type_byte;
+    int tl = (int)strlen(text);
+    if(tl > (int)sizeof pre - 5) tl = (int)sizeof pre - 5;
+    memcpy(pre + n, text, tl); n += tl;
+    /* SHA256( ts||typebyte||text  ||  sender_pub[32] )[:4] */
+    lz_sha256_ctx c; lz_sha256_init(&c);
+    lz_sha256_update(&c, pre, n);
+    lz_sha256_update(&c, sender_pub, 32);
+    uint8_t d[32]; lz_sha256_final(&c, d);
+    memcpy(out4, d, 4);
+}
+
+/* DM payload layout: [dest_hash:1][src_hash:1][cipher_mac:2][AES-128-ECB ciphertext] */
+bool mc_dm_decode(const mc_pkt_t *p, const uint8_t shared32[32], mc_dm_msg_t *o)
+{
+    if(p->payload_type != MC_PAYLOAD_TXT_MSG) return false;
+    if(p->version != 0) return false;                     /* v1 framing only */
+    int ctlen = p->payload_len - 4;                       /* minus dest+src+mac */
+    if(ctlen <= 0 || ctlen % 16 != 0 || ctlen > 224) return false;
+    uint8_t dest_hash = p->payload[0];
+    uint8_t src_hash  = p->payload[1];
+    const uint8_t *mac = p->payload + 2;
+    const uint8_t *ct  = p->payload + 4;
+    (void)dest_hash;
+
+    /* MAC = HMAC-SHA256(full 32B shared secret, ciphertext)[:2] — Encrypt-then-MAC */
+    uint8_t full[32];
+    lz_hmac_sha256(shared32, 32, ct, ctlen, full);
+    if(full[0] != mac[0] || full[1] != mac[1]) return false;
+
+    uint8_t pt[224];
+    lz_aes128_ecb_decrypt(shared32, ct, pt, ctlen / 16); /* AES key = shared32[0..15] */
+    if(ctlen < 6) return false;
+
+    memset(o, 0, sizeof *o);
+    memcpy(&o->timestamp, pt, 4);                          /* LE */
+    o->txt_type = (uint8_t)(pt[4] >> 2);
+    o->attempt  = (uint8_t)(pt[4] & 3);
+    o->src_hash = src_hash;
+    int body_off = 5;
+    if(o->txt_type == MC_TXT_TYPE_SIGNED_PLAIN) body_off = 9;   /* 4B sender-pub prefix */
+    if(body_off > ctlen) body_off = ctlen;
+    int blen = ctlen - body_off;
+    if(blen > (int)sizeof o->text - 1) blen = sizeof o->text - 1;
+    memcpy(o->text, pt + body_off, blen);
+    o->text[blen] = 0;                                     /* zero-pad doubles as NUL */
+    return true;
+}
+
+int mc_dm_encode(uint8_t *frame, int cap, const uint8_t shared32[32],
+                 uint8_t dest_hash, uint8_t src_hash, uint32_t ts,
+                 uint8_t txt_type, uint8_t attempt, const char *text,
+                 const uint8_t sender_pub[32], uint8_t out_ack4[4])
+{
+    int tl = (int)strlen(text);
+    if(tl > 180) tl = 180;
+    uint8_t type_byte = (uint8_t)((txt_type << 2) | (attempt & 3));
+
+    /* plaintext = [ts:4 LE][type_byte:1][text + NUL], zero-padded to 16B (NO name prefix) */
+    uint8_t pt[224]; int pl = 0;
+    pt[pl++] = (uint8_t)(ts);       pt[pl++] = (uint8_t)(ts >> 8);
+    pt[pl++] = (uint8_t)(ts >> 16); pt[pl++] = (uint8_t)(ts >> 24);
+    pt[pl++] = type_byte;
+    memcpy(pt + pl, text, tl); pl += tl;
+    pt[pl++] = 0;                                          /* NUL */
+    int padded = (pl + 15) & ~15;
+    if(padded > (int)sizeof pt) return -1;
+    memset(pt + pl, 0, padded - pl);
+
+    if(out_ack4) mc_dm_ack4(out_ack4, ts, type_byte, text, sender_pub);
+
+    uint8_t ct[224];
+    lz_aes128_ecb_encrypt(shared32, pt, ct, padded / 16);
+    uint8_t mac[32]; lz_hmac_sha256(shared32, 32, ct, padded, mac);
+
+    int need = 2 + 1 + 1 + 2 + padded;                    /* hdr+path + dest+src + mac + ct */
+    if(need > cap) return -1;
+    int fl = 0;
+    frame[fl++] = (MC_PAYLOAD_TXT_MSG << MC_TYPE_SHIFT) | MC_ROUTE_FLOOD;
+    frame[fl++] = 0;                                       /* path_len = 0 (flood) */
+    frame[fl++] = dest_hash;
+    frame[fl++] = src_hash;
+    frame[fl++] = mac[0];
+    frame[fl++] = mac[1];
+    memcpy(frame + fl, ct, padded); fl += padded;
+    return fl;
+}
+
 const char *mc_type_name(uint8_t t)
 {
     switch(t) {

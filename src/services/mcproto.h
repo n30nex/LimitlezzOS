@@ -76,6 +76,20 @@ typedef struct {
 extern const uint8_t MC_PUBLIC_SECRET[16];
 #define MC_PUBLIC_CHANNEL_HASH 0x11
 
+/* a decoded direct message (TXT_MSG). Unlike GRP_TXT, the plaintext carries no
+ * sender name — the sender is identified by src_hash + the matched contact. */
+typedef struct {
+    uint32_t timestamp;
+    uint8_t  txt_type;          /* 0 PLAIN, 1 CLI_DATA, 2 SIGNED_PLAIN */
+    uint8_t  attempt;
+    uint8_t  src_hash;          /* first byte of sender's pubkey */
+    char     text[176];
+} mc_dm_msg_t;
+
+#define MC_TXT_TYPE_PLAIN        0
+#define MC_TXT_TYPE_CLI_DATA     1
+#define MC_TXT_TYPE_SIGNED_PLAIN 2
+
 /* parse the on-air framing; false if the header/path are malformed */
 bool mc_parse(const uint8_t *buf, int len, mc_pkt_t *out);
 /* decode an ADVERT packet's identity + name; false if not an advert/too short */
@@ -88,6 +102,21 @@ bool mc_group_decode(const mc_pkt_t *p, const uint8_t secret16[16], mc_group_msg
 /* build a GRP_TXT on-air frame (FLOOD route, path_len 0). Returns length or -1. */
 int  mc_group_encode(uint8_t *frame, int cap, const uint8_t secret16[16],
                      uint32_t timestamp, const char *sender, const char *text);
+
+/* ---- direct messages (TXT_MSG). shared32 = X25519 ECDH secret (mc_ed25519_dh).
+ * AES-128 key = shared32[0..15]; HMAC key = the full 32B (NOT zero-padded). ---- */
+/* the 4-byte delivery checksum = SHA256( [ts:4][typebyte:1][text, no NUL] || sender_pub[32] )[:4] */
+void mc_dm_ack4(uint8_t out4[4], uint32_t timestamp, uint8_t type_byte,
+                const char *text, const uint8_t sender_pub[32]);
+/* decode a TXT_MSG payload: verify MAC + AES-128-ECB decrypt. false if not a DM,
+ * malformed, wrong payload version, or MAC mismatch (=> wrong peer/channel). */
+bool mc_dm_decode(const mc_pkt_t *p, const uint8_t shared32[32], mc_dm_msg_t *out);
+/* build a TXT_MSG frame (FLOOD route, path_len 0). Returns length or -1, and
+ * writes the 4-byte expected-ACK so the sender can match the peer's reply. */
+int  mc_dm_encode(uint8_t *frame, int cap, const uint8_t shared32[32],
+                  uint8_t dest_hash, uint8_t src_hash, uint32_t timestamp,
+                  uint8_t txt_type, uint8_t attempt, const char *text,
+                  const uint8_t sender_pub[32], uint8_t out_ack4[4]);
 /* human label for a payload type (for diagnostics) */
 const char *mc_type_name(uint8_t payload_type);
 

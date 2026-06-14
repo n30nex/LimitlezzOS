@@ -19,6 +19,7 @@
 #include "services/mesh.h"
 #include "services/mtproto.h"
 #include "services/mcproto.h"
+#include "services/mc_x25519.h"
 #include <SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -509,6 +510,38 @@ static int codec_selftest(void)
               "MeshCore GRP_TXT round-trip decodes");
         CHECK(rm.timestamp == 0x12345678u && strcmp(rm.sender, "Bob") == 0 &&
               strcmp(rm.text, "hi there") == 0, "MeshCore GRP_TXT round-trip fields");
+    }
+
+    /* 10. MeshCore DM (TXT_MSG): ECDH derive (vs orlp/standard reference) then a
+     *     full encode->parse->decode round-trip + ACK match + MAC tamper check. */
+    {
+        uint8_t seedA[32], pubA[32], pubB[32], ref[32];
+        #define HX(s,b) do{ const char*h=(s); for(int i=0;i<32;i++){unsigned v;sscanf(h+i*2,"%2x",&v);(b)[i]=(uint8_t)v;} }while(0)
+        HX("18469d6140447f77de13cd8d761e605431f52269fbff43b0925752ed9e674543", seedA);
+        HX("269a00cc46663e159ec2b90132e584743ebd3324910199e72ac09fff54c4a64d", pubA);
+        HX("1013c0e1ff475a1cd1afaf7e2c2d4a396acec5b650dbe24696a21711d8405ab0", pubB);
+        HX("75335905e5b18ec51967d9a1db1c76187cfc0a537a5b9ac5dfc1eacc6db37653", ref);
+        #undef HX
+        uint8_t sh[32];
+        mc_ed25519_dh(sh, pubB, seedA);
+        CHECK(memcmp(sh, ref, 32) == 0, "MeshCore DM ECDH matches MeshCore/standard reference");
+
+        uint8_t ack[4], frame[160];
+        int fl = mc_dm_encode(frame, sizeof frame, sh, pubB[0], pubA[0], 0x6843B2A0u,
+                              MC_TXT_TYPE_PLAIN, 0, "hi cedar from limit", pubA, ack);
+        CHECK(fl > 6, "MeshCore DM encodes");
+        mc_pkt_t dp; mc_dm_msg_t dm;
+        CHECK(mc_parse(frame, fl, &dp) && dp.payload_type == MC_PAYLOAD_TXT_MSG, "MeshCore DM parses (TXT_MSG)");
+        CHECK(mc_dm_decode(&dp, sh, &dm), "MeshCore DM decodes + MAC ok");
+        CHECK(dm.timestamp == 0x6843B2A0u && dm.txt_type == 0 && dm.attempt == 0 &&
+              dm.src_hash == pubA[0] && strcmp(dm.text, "hi cedar from limit") == 0,
+              "MeshCore DM fields (no name prefix)");
+        uint8_t ack_r[4];                        /* recipient recomputes from decoded fields + sender pub */
+        mc_dm_ack4(ack_r, dm.timestamp, (uint8_t)((dm.txt_type<<2)|dm.attempt), dm.text, pubA);
+        CHECK(memcmp(ack, ack_r, 4) == 0, "MeshCore DM ACK checksum matches (sender vs recipient)");
+        frame[7] ^= 0x40;                        /* corrupt a ciphertext byte */
+        mc_pkt_t dp2; mc_dm_msg_t dm2;
+        CHECK(mc_parse(frame, fl, &dp2) && !mc_dm_decode(&dp2, sh, &dm2), "MeshCore DM MAC rejects tampering");
     }
 
     #undef CHECK
