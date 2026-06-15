@@ -5,7 +5,7 @@ A mesh-native handheld OS for the **LilyGO T-Deck** (ESP32-S3, SX1262 LoRa,
 **MeshCore** into a single network-tagged inbox, driven entirely by the
 trackball.
 
-It is a working **Alpha 0.6**: real LVGL 8.3 firmware (display via LovyanGFX),
+It is a working **Beta 0.6**: real LVGL 8.3 firmware (display via LovyanGFX),
 a desktop SDL2 simulator sharing the exact same UI code, and a live dual-stack
 **Meshtastic + MeshCore** radio stack on the one SX1262 (time-shared by a
 split-airtime scheduler), plus a USB/BLE companion bridge — flashed and tested
@@ -15,7 +15,7 @@ prescribes: flat solid fills, 1px hairlines, a 2px near-white focus ring, baked
 font tables, no images, no gradients, no alpha layering — now moving toward an
 iPhone-style dark look (status bar, battery glyph, grouped settings cards).
 
-> 🚀 **Public Alpha release (Alpha 0.6).** It runs on real
+> 🚀 **Public Beta release (Beta 0.6).** It runs on real
 > hardware and the core **Meshtastic** experience is genuinely usable — encrypted
 > DMs both ways, channel messaging, a USB companion bridge, lock-screen
 > notifications — but some features are still unfinished (see below). The
@@ -23,7 +23,7 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
 > device UI (MUI), before fully building out **MeshCore**. Status reflects
 > hands-on hardware testing as of **2026-06-13**.
 
-## Alpha status
+## Beta status
 
 ### ✅ Working (hardware-tested)
 - **Display, screens & navigation** — renders cleanly, tear-free, screen-to-screen nav.
@@ -67,14 +67,21 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
   appears after enabling Developer Mode in Settings.
 - **Serial console** — USB-CDC command shell for control + diagnostics (`help`, `time`, `tz`, `net`, `rf`, `mc`, `companion`, `touch`, …).
 
+### ✅ Working — MeshCore (Beta 0.6)
+- **MeshCore Public chat** — send/receive on the default Public channel,
+  hardware-verified against a live mesh, in the same unified inbox as Meshtastic.
+- **MeshCore encrypted DMs** — per-pair X25519 ECDH + AES, ACK/delivery state,
+  hardware-verified against a real MeshCore peer.
+- **Split airtime** — one SX1262 time-shared between Meshtastic and MeshCore by a
+  scheduler that never cuts an in-flight RX/TX (currently a fixed 60/40 split; a
+  user-facing config UI is the remaining V0.6 polish).
+
 ### 🧪 In testing
-- **MeshCore (whole network path)** — adverts transmit + remote nodes decode, but
-  **receiving is not working yet**: no Public channel, can't see/send/receive
-  MeshCore messages. The MeshCore app + settings are gated "Coming soon" for this Alpha.
 - **Meshtastic BLE companion** — the firmware exposes the official Meshtastic
-  BLE GATT service (`ToRadio`, `FromRadio`, `FromNum`) through NimBLE, with a
-  separate BLE companion toggle and serial diagnostics. Phone pairing plus
-  send/receive still need hardware validation before it moves to "working".
+  BLE GATT service (`ToRadio`, `FromRadio`, `FromNum`) through NimBLE, advertises,
+  and the official app discovers + connects. **Open bug:** the session drops
+  immediately (connect-then-disconnect) — being fixed. (Wi-Fi and BLE are mutually
+  exclusive on this RAM-tight ESP32-S3; enabling one frees the other.)
 
 ### 🛠️ Roadmap — versioned plan
 - ✅ **0.3** — DM profile shortcuts; **Meshtastic DMs (PKI, both ways)**; **delivery

@@ -32,15 +32,17 @@ The firmware is complete when:
 
 These maintainer-provided beta labels are the canonical near-term sequence. The broader phases below preserve that order, then add post-V0.96 completion work for OTA, the full App Store, security, feedback, emergency, and release hardening.
 
-| Version | Milestone |
-| --- | --- |
-| V0.5 | BLE companion for Meshtastic |
-| V0.6 | MeshCore public chat and split airtime config |
-| V0.7 | MeshCore DMs and private chats |
-| V0.8 | MeshCore USB companion and MeshCore BLE companion |
-| V0.9 | Code review, optimization, and emoji polish |
-| V0.95 | Basic app SDK and infrastructure; Home UI supports adding apps and multiple home screens |
-| V0.96 | Upgraded Wi-Fi password storage |
+**Current release: Beta 0.6.** V0.6 (MeshCore public chat + split airtime) and V0.7 (MeshCore encrypted DMs) are implemented and hardware-verified against a live mesh; V0.5 (BLE companion) is implemented and advertises/serves GATT but has an open connect-then-disconnect bug with the official app. Also delivered this cycle (outside the milestone list): a desktop SDL2 simulator with a 50+ assertion codec/scenario self-test harness, and Wi-Fi/BLE mutual exclusion (they share scarce internal DMA RAM on the ESP32-S3, so only one is resident at a time).
+
+| Version | Milestone | Status |
+| --- | --- | --- |
+| V0.5 | BLE companion for Meshtastic | 🚧 Firmware done — advertises + GATT (ToRadio/FromRadio/FromNum) works on hardware; **connect-then-disconnect** with the official app is open |
+| V0.6 | MeshCore public chat and split airtime config | ✅ Public chat send/receive + split-airtime scheduler hardware-verified (split shipped as a fixed 60/40; a user config UI is still TODO) |
+| V0.7 | MeshCore DMs and private chats | ✅ Encrypted DMs (X25519 ECDH + AES) send/receive hardware-verified against a real MeshCore peer |
+| V0.8 | MeshCore USB companion and MeshCore BLE companion | ⬜ Not started |
+| V0.9 | Code review, optimization, and emoji polish | ⬜ Not started |
+| V0.95 | Basic app SDK and infrastructure; Home UI supports adding apps and multiple home screens | ⬜ Not started |
+| V0.96 | Upgraded Wi-Fi password storage | ⬜ Not started |
 
 ## Phase 0 - Stabilize The Baseline
 
@@ -100,6 +102,8 @@ Exit criteria:
 
 Goal: let the official Meshtastic app connect wirelessly to the T-Deck radio after the USB companion path is stable.
 
+**Status (Beta 0.6): mostly done — one open bug.** BLE transport, the GATT service, the USB/BLE companion UI rows, USB↔BLE arbitration, and the serial selftest are implemented and on hardware. The official app discovers and connects to the radio, but the session drops immediately (**connect-then-disconnect**) — the one open item, tracked as the current top bug (likely BLE bonding/security or the want_config handshake).
+
 Deliverables:
 
 - Add BLE transport for the Meshtastic companion protocol. Implemented in firmware with NimBLE-Arduino and the official Meshtastic BLE GATT service UUIDs: `ToRadio` writes, `FromRadio` reads, and `FromNum` read/notify/write.
@@ -117,6 +121,8 @@ Exit criteria:
 ## Phase 3 - V0.6 MeshCore Public Chat And Split Airtime Config
 
 Goal: make MeshCore visible in the real product through public chat first, while giving users a simple way to understand and control split airtime.
+
+**Status (Beta 0.6): done.** TDM validated on hardware (fast slot switching, both networks receiving, never cuts an in-flight RX/TX); MeshCore ADVERT interop, public/default channel receive, group/room text, the send path through `lz_svc_send_text`, unified-inbox wiring, the public-chat network toggle, and dual-network unread badges all work on a live mesh. Remaining polish: a user-facing split-airtime *config UI* (currently a fixed 60/40 split toward Meshtastic).
 
 Deliverables:
 
@@ -145,6 +151,8 @@ Exit criteria:
 ## Phase 4 - V0.7 MeshCore DMs And Private Chats
 
 Goal: complete private MeshCore messaging after the public-chat path has proven the radio scheduler and inbox integration.
+
+**Status (Beta 0.6): done (ahead of sequence).** MeshCore private receive + send (through the mesh service boundary), per-pair X25519 ECDH + AES key handling, ACK/routing, retry/failure status, unambiguous reply routing, role/key-gated messageability, and serial diagnostics are implemented and hardware-verified against a real MeshCore peer ("Limitlezz"). Note: this V0.7 work landed during the V0.6 cycle.
 
 Deliverables:
 
