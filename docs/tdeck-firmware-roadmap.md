@@ -238,11 +238,12 @@ Deliverables:
   Home opens scanned local apps in an SDK 0.1 foreground shell that reads
   bounded display metadata and up to two bounded foreground actions from the
   entry file, including a storage-scoped counter effect for apps that request
-  `storage`, then terminates on exit; App Store opens the manifest detail shell
-  with a trackball-accessible `OPEN` action. Script execution and richer
-  injected runtime APIs remain below, with initial read-only `{time}` and
-  `{battery}` token injection now routed through declared `system_time` and
-  `battery` permissions.
+  `storage`; unknown action effects and malformed counter effects are
+  launch-blocked instead of ignored. App sessions terminate on exit; App Store
+  opens the manifest detail shell with a trackball-accessible `OPEN` action.
+  Script execution and richer injected runtime APIs remain below, with initial
+  read-only `{time}` and `{battery}` token injection now routed through
+  declared `system_time` and `battery` permissions.
 - Parse app SDK metadata and permission namespaces from manifests. Implemented
   for SDK `0.1`: unknown permissions and unsupported SDK versions are rejected
   before reaching the launcher; API injection remains below.
@@ -261,7 +262,8 @@ Deliverables:
     exceeds the early 64 KB quota. SDK 0.1 foreground actions can increment a
     safe counter file inside that scoped data directory, and App Store detail
     can clear only that scoped data directory; richer runtime API calls and
-    richer quota controls remain below.
+    richer quota controls remain below. Unsupported action effects and malformed
+    counter keys are rejected before the foreground shell opens.
   - read-only system values. Groundwork implemented: SDK 0.1 entry and action
     text can use `{time}` and `{battery}` only when the manifest declares the
     matching `system_time` or `battery` permission; missing permissions block

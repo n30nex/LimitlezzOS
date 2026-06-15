@@ -66,7 +66,8 @@ after activation, and the third replaces the body text. The optional fourth
 field is a tiny SDK effect. The only supported effect is `counter:<safe-key>`,
 which increments `<app>/data/<safe-key>.count` and expands `{count}` in the
 status/body. Counter keys may contain up to 19 letters, numbers, `_`, and `-`
-characters only.
+characters only. Unknown effects and malformed counter keys are launch-blocked
+instead of being ignored.
 
 Actions require the `input` permission; display-only apps that declare actions
 are launch-blocked. Counter actions also require `storage` permission and stay

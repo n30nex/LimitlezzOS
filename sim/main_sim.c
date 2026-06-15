@@ -848,6 +848,49 @@ static int codec_selftest(void)
         bool nostore_ok = nostore && lz_store_start_local_app(nostore, &nostore_run);
         CHECK(!nostore_ok && nostore && strcmp(nostore_run.error, "storage permission missing") == 0,
               "local app foreground storage action requires storage permission");
+        sim_mkdirs("lzdata_appscan/apps/badcounter");
+        FILE *bcm = fopen("lzdata_appscan/apps/badcounter/manifest.json", "wb");
+        if(bcm) {
+            fputs("{\"id\":\"badcounter.local\",\"name\":\"Bad Counter\",\"entry\":\"main.lua\","
+                  "\"permissions\":[\"display\",\"input\",\"storage\"]}", bcm);
+            fclose(bcm);
+        }
+        FILE *bce = fopen("lzdata_appscan/apps/badcounter/main.lua", "wb");
+        if(bce) {
+            fputs("-- body: Counter effect with unsafe key\n"
+                  "-- action: Count | Counted | Should not run | counter:../shared\n", bce);
+            fclose(bce);
+        }
+        sim_mkdirs("lzdata_appscan/apps/badeffect");
+        FILE *bem = fopen("lzdata_appscan/apps/badeffect/manifest.json", "wb");
+        if(bem) {
+            fputs("{\"id\":\"badeffect.local\",\"name\":\"Bad Effect\",\"entry\":\"main.lua\","
+                  "\"permissions\":[\"display\",\"input\"]}", bem);
+            fclose(bem);
+        }
+        FILE *bee = fopen("lzdata_appscan/apps/badeffect/main.lua", "wb");
+        if(bee) {
+            fputs("-- body: Unsupported action effect\n"
+                  "-- action: Raw TX | Should not run | Raw radio must fail closed | radio:raw\n", bee);
+            fclose(bee);
+        }
+        lz_local_app_t effect_apps[LZ_MAX_LOCAL_APPS];
+        int effectn = lz_store_scan_apps(effect_apps, LZ_MAX_LOCAL_APPS);
+        lz_local_app_t *badcounter = NULL, *badeffect = NULL;
+        for(int i = 0; i < effectn; i++) {
+            if(strcmp(effect_apps[i].id, "badcounter.local") == 0) badcounter = &effect_apps[i];
+            if(strcmp(effect_apps[i].id, "badeffect.local") == 0) badeffect = &effect_apps[i];
+        }
+        lz_local_app_session_t badcounter_run;
+        bool badcounter_ok = badcounter && lz_store_start_local_app(badcounter, &badcounter_run);
+        CHECK(!badcounter_ok && badcounter &&
+              strcmp(badcounter_run.error, "bad action effect") == 0,
+              "local app foreground rejects malformed action effects");
+        lz_local_app_session_t badeffect_run;
+        bool badeffect_ok = badeffect && lz_store_start_local_app(badeffect, &badeffect_run);
+        CHECK(!badeffect_ok && badeffect &&
+              strcmp(badeffect_run.error, "unsupported action effect") == 0,
+              "local app foreground rejects unsupported action effects");
         sim_mkdirs("lzdata_appscan/apps/huge");
         FILE *hm = fopen("lzdata_appscan/apps/huge/manifest.json", "wb");
         if(hm) {
@@ -858,8 +901,8 @@ static int codec_selftest(void)
         lz_local_app_issue_t issues[4];
         int in = lz_store_scan_app_issues(issues, 4);
         bool bad_id = false, bad_perm = false;
-        lz_local_app_t huge_apps[4];
-        int hn = lz_store_scan_apps(huge_apps, 4);
+        lz_local_app_t huge_apps[LZ_MAX_LOCAL_APPS];
+        int hn = lz_store_scan_apps(huge_apps, LZ_MAX_LOCAL_APPS);
         lz_local_app_t *huge = NULL;
         for(int i = 0; i < hn; i++)
             if(strcmp(huge_apps[i].id, "huge.local") == 0) huge = &huge_apps[i];

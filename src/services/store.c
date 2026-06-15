@@ -487,6 +487,24 @@ static bool action_needs_storage(const lz_local_app_session_t *s)
     return false;
 }
 
+static bool action_effect_error(const lz_local_app_session_t *s, char *err, size_t cap)
+{
+    if(!s) return false;
+    char key[20];
+    for(int i = 0; i < s->action_count; i++) {
+        const char *effect = s->actions[i].effect;
+        if(!effect[0]) continue;
+        if(strncmp(effect, "counter:", 8) == 0 || strncmp(effect, "count:", 6) == 0) {
+            if(effect_counter_key(effect, key, sizeof key)) continue;
+            if(err && cap > 0) snprintf(err, cap, "bad action effect");
+            return true;
+        }
+        if(err && cap > 0) snprintf(err, cap, "unsupported action effect");
+        return true;
+    }
+    return false;
+}
+
 static void template_count(char *out, size_t cap, const char *tmpl, uint32_t count)
 {
     if(!out || cap == 0) return;
@@ -864,6 +882,9 @@ bool lz_store_start_local_app(const lz_local_app_t *app, lz_local_app_session_t 
     }
     if(out->action_count > 0 && (app->permissions & LZ_APP_PERM_INPUT) == 0)
         return app_session_fail(out, app, "input permission missing");
+    char effect_err[48];
+    if(action_effect_error(out, effect_err, sizeof effect_err))
+        return app_session_fail(out, app, effect_err);
     if(action_needs_storage(out) && !out->storage_ready)
         return app_session_fail(out, app, "storage permission missing");
     return true;
