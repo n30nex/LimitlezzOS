@@ -47,6 +47,8 @@ void sim_radio_init(void);
 void sim_radio_loop(void);                 /* periodic traffic pump + deferred replies */
 bool sim_radio_send(lz_mt_packet_t *p);    /* firmware -> air: route, ACK, maybe reply */
 void sim_radio_set_networks(bool mt, bool mc);
+void sim_radio_set_airtime(int mode);
+int  sim_radio_airtime_mode(void);
 void sim_radio_stats(lz_radio_stats_t *out);
 bool sim_radio_mc_advert_now(bool flood);  /* our self-advert (sim: pretend sent) */
 

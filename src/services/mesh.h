@@ -34,6 +34,40 @@ extern "C" {
 #define LZ_MESHCORE_ENABLED 0
 #endif
 
+enum {
+    LZ_AIRTIME_MT_FIRST = 0,   /* 60/40: keeps LongFast's slower airtime favored */
+    LZ_AIRTIME_BALANCED = 1,   /* 50/50 */
+    LZ_AIRTIME_MC_FIRST = 2,   /* 40/60 */
+    LZ_AIRTIME_COUNT = 3,
+    LZ_AIRTIME_DEFAULT = LZ_AIRTIME_MT_FIRST
+};
+
+static inline int lz_airtime_mode_clamp(int mode)
+{
+    return (mode >= 0 && mode < LZ_AIRTIME_COUNT) ? mode : LZ_AIRTIME_DEFAULT;
+}
+
+static inline const char *lz_airtime_mode_label(int mode)
+{
+    switch(lz_airtime_mode_clamp(mode)) {
+        case LZ_AIRTIME_BALANCED: return "Balanced";
+        case LZ_AIRTIME_MC_FIRST: return "MeshCore first";
+        default: return "Meshtastic first";
+    }
+}
+
+static inline void lz_airtime_split_pct(int mode, int *mt_pct, int *mc_pct)
+{
+    int mt = 60, mc = 40;
+    switch(lz_airtime_mode_clamp(mode)) {
+        case LZ_AIRTIME_BALANCED: mt = 50; mc = 50; break;
+        case LZ_AIRTIME_MC_FIRST: mt = 40; mc = 60; break;
+        default: break;
+    }
+    if(mt_pct) *mt_pct = mt;
+    if(mc_pct) *mc_pct = mc;
+}
+
 typedef struct {
     bool     has_battery;
     int      battery_pct;
@@ -171,6 +205,7 @@ void lz_svc_set_node_num(uint32_t num);                   /* real node id (from 
 /* ---- persisted user settings ---- */
 typedef struct {
     bool net_mt, net_mc;
+    int  airtime;
     int  tx;
     bool gps;
     int  bright;
@@ -241,6 +276,7 @@ bool lz_backend_ok(void);            /* radio init succeeded (diagnostics) */
 int  lz_backend_begin_state(void);   /* RadioLib begin() return code */
 void lz_backend_set_tx_power(int dbm);  /* live TX power change */
 void lz_backend_set_networks(bool mt, bool mc);  /* drive the TDM schedule */
+void lz_backend_set_airtime(int mode);  /* choose the both-networks split */
 void lz_backend_request_nodeinfo(uint32_t to);   /* ask a node for its NodeInfo (PKI key) */
 bool lz_backend_mc_advert_now(bool flood);       /* send a MeshCore self-advert (flood/zero-hop) */
 void lz_backend_mc_addr(char *buf, int n);       /* our MeshCore address, e.g. "MC-978bbe5f" */

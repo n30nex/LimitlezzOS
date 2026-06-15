@@ -28,6 +28,8 @@ void lz_backend_set_tx_power(int dbm) { (void)dbm; }   /* no real radio in the s
 
 void lz_backend_set_networks(bool mt, bool mc) { sim_radio_set_networks(mt, mc); }
 
+void lz_backend_set_airtime(int mode) { sim_radio_set_airtime(mode); }
+
 void lz_backend_request_nodeinfo(uint32_t to) { (void)to; }   /* no radio in the sim */
 
 bool lz_backend_mc_advert_now(bool flood) { return sim_radio_mc_advert_now(flood); }

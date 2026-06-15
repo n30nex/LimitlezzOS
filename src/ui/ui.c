@@ -63,7 +63,7 @@ void lz_idle_tick(void)
 lz_state_t S;
 
 /* push the network enable toggles to the radio backend's TDM scheduler:
- * both on -> round-robin split, one on -> 100%, neither -> idle */
+ * both on -> configured split, one on -> 100%, neither -> idle */
 void lz_apply_networks(void) { lz_backend_set_networks(S.net_mt, S.net_mc); }
 
 static lv_obj_t *g_root;
@@ -121,6 +121,7 @@ static void settings_defaults(void)
     S.settings.save = false;
     S.settings.bright = 74;
     S.settings.timeout = 1;   /* 30s */
+    S.settings.airtime = LZ_AIRTIME_DEFAULT;
     S.settings.tx = 3;        /* Max (22 dBm) - matches the radio's init power */
     S.settings.kb_light = 0;  /* Auto */
     S.settings.tz_idx = 0;    /* Eastern (EST/EDT, DST-aware) by default */
@@ -131,6 +132,7 @@ static void settings_defaults(void)
 static void settings_sanitize(void)
 {
     if(!LZ_MESHCORE_ENABLED) S.net_mc = false;
+    S.settings.airtime = lz_airtime_mode_clamp(S.settings.airtime);
     S.settings.tx = clamp_i(S.settings.tx, 0, 3);
     S.settings.bright = clamp_i(S.settings.bright, 5, 100);
     S.settings.timeout = clamp_i(S.settings.timeout, 0, 4);
@@ -144,6 +146,7 @@ static void settings_load(void)
     if(!lz_store_load_settings(&p)) return;
     S.net_mt = p.net_mt;
     S.net_mc = p.net_mc;
+    S.settings.airtime = p.airtime;
     S.settings.tx = p.tx;
     S.settings.gps = p.gps;
     S.settings.bright = p.bright;
@@ -160,7 +163,7 @@ void lz_settings_save(void)
 {
     settings_sanitize();
     lz_user_settings_t p = {
-        S.net_mt, S.net_mc, S.settings.tx, S.settings.gps,
+        S.net_mt, S.net_mc, S.settings.airtime, S.settings.tx, S.settings.gps,
         S.settings.bright, S.settings.timeout, S.settings.kb_light,
         S.settings.tz_idx, S.settings.clock24, S.settings.save,
         S.settings.developer,
@@ -180,6 +183,7 @@ static void settings_apply_runtime(void)
 {
     lz_tz_apply(S.settings.tz_idx);
     lz_svc_set_clock24(S.settings.clock24);
+    lz_backend_set_airtime(S.settings.airtime);
     lz_apply_networks();
     lz_backend_set_tx_power(tx_dbm_for_idx(S.settings.tx));
 }
@@ -833,8 +837,8 @@ void lz_onboard_advance(void)
 
 bool lz_settings_slider_focused(void)
 {
-    /* settings focus order: 0 Meshtastic, 1 MeshCore, then rows; brightness is focus 5 */
-    return S.focus == 5;
+    /* settings focus order: 0 Meshtastic, 1 MeshCore, then rows; brightness is focus 6 */
+    return S.focus == 6;
 }
 
 void lz_settings_bright_adjust(int delta)

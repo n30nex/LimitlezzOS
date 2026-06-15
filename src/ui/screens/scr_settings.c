@@ -22,21 +22,22 @@ typedef struct {
 /* Meshtastic is fixed to US / LongFast (no Region or Modem-preset options) and
  * MeshCore to its single public profile, so neither is configurable here. */
 static const srow_t SROWS[] = {   /* unsized: never drops a row when one is added */
-    { "TX power",         LZ_I_CELL_TOWER, ROW_VALUE  },  /* f=2  */
-    { "Wi-Fi",            LZ_I_WIFI,       ROW_NAV    },  /* f=3  */
-    { "GPS",              LZ_I_LOCATION,   ROW_TOGGLE },  /* f=4  */
-    { "Brightness",       LZ_I_BRIGHTNESS, ROW_SLIDER },  /* f=5  */
-    { "Keyboard light",   LZ_I_BRIGHTNESS, ROW_VALUE  },  /* f=6  */
-    { "Sleep after",      LZ_I_SCHEDULE,   ROW_VALUE  },  /* f=7  */
-    { "Time zone",        LZ_I_PUBLIC,     ROW_VALUE  },  /* f=8  */
-    { "Set time",         LZ_I_SCHEDULE,   ROW_NAV    },  /* f=9  */
-    { "Clock format",     LZ_I_SCHEDULE,   ROW_VALUE  },  /* f=10 */
-    { "Power saving",     LZ_I_BOLT,       ROW_TOGGLE },  /* f=11 */
-    { "System & battery", LZ_I_MONITORING, ROW_NAV    },  /* f=12 */
-    { "Calibrate touch",  LZ_I_LOCATION,   ROW_NAV    },  /* f=13 */
-    { "Developer Mode",   LZ_I_TERMINAL,   ROW_TOGGLE },  /* f=14 */
+    { "Airtime split",    LZ_I_GRAPHIC_EQ, ROW_VALUE  },  /* f=2  */
+    { "TX power",         LZ_I_CELL_TOWER, ROW_VALUE  },  /* f=3  */
+    { "Wi-Fi",            LZ_I_WIFI,       ROW_NAV    },  /* f=4  */
+    { "GPS",              LZ_I_LOCATION,   ROW_TOGGLE },  /* f=5  */
+    { "Brightness",       LZ_I_BRIGHTNESS, ROW_SLIDER },  /* f=6  */
+    { "Keyboard light",   LZ_I_BRIGHTNESS, ROW_VALUE  },  /* f=7  */
+    { "Sleep after",      LZ_I_SCHEDULE,   ROW_VALUE  },  /* f=8  */
+    { "Time zone",        LZ_I_PUBLIC,     ROW_VALUE  },  /* f=9  */
+    { "Set time",         LZ_I_SCHEDULE,   ROW_NAV    },  /* f=10 */
+    { "Clock format",     LZ_I_SCHEDULE,   ROW_VALUE  },  /* f=11 */
+    { "Power saving",     LZ_I_BOLT,       ROW_TOGGLE },  /* f=12 */
+    { "System & battery", LZ_I_MONITORING, ROW_NAV    },  /* f=13 */
+    { "Calibrate touch",  LZ_I_LOCATION,   ROW_NAV    },  /* f=14 */
+    { "Developer Mode",   LZ_I_TERMINAL,   ROW_TOGGLE },  /* f=15 */
 };
-#define SETTINGS_FOCUS_COUNT 15   /* 2 network rows + 13 SROWS */
+#define SETTINGS_FOCUS_COUNT 16   /* 2 network rows + 14 SROWS */
 
 /* Named regions people recognize. Each carries a STANDARD-time offset plus a
  * daylight rule, so the clock follows DST automatically — pick "Eastern" once
@@ -88,6 +89,15 @@ int lz_tz_find(const char *s)
 
 static void cycle(int *idx, int n) { *idx = (*idx + 1) % n; }
 
+static const char *airtime_short_label(int mode)
+{
+    switch(lz_airtime_mode_clamp(mode)) {
+        case LZ_AIRTIME_BALANCED: return "Balanced";
+        case LZ_AIRTIME_MC_FIRST: return "MC first";
+        default: return "MT first";
+    }
+}
+
 /* focus skips the MeshCore network row while it's locked (Stage 1) */
 static bool settings_disabled(int idx) { return idx == 1 && !LZ_MESHCORE_ENABLED; }
 
@@ -98,19 +108,20 @@ static void settings_activate(int f)
         case 0: S.net_mt = !S.net_mt; lz_apply_networks(); break;
         case 1: if(!LZ_MESHCORE_ENABLED) return;   /* MeshCore locked: "Coming soon" */
                 S.net_mc = !S.net_mc; lz_apply_networks(); break;
-        case 2: cycle(&S.settings.tx, 4); lz_backend_set_tx_power(TXPOW_DBM[S.settings.tx]); break;
-        case 3: lz_go(LZ_V_WIFI); return;          /* Wi-Fi setup */
-        case 4: S.settings.gps = !S.settings.gps; break;
-        case 5: return;                            /* slider: left/right adjusts */
-        case 6: cycle(&S.settings.kb_light, 3); break;
-        case 7: cycle(&S.settings.timeout, 5); break;
-        case 8: lz_go(LZ_V_TZPICK); S.focus = S.settings.tz_idx; lz_rebuild(); return;
-        case 9: lz_settime_enter(); lz_go(LZ_V_SETTIME); return;
-        case 10: S.settings.clock24 = !S.settings.clock24; lz_svc_set_clock24(S.settings.clock24); break;
-        case 11: S.settings.save = !S.settings.save; break;
-        case 12: lz_go(LZ_V_SYSTEM); return;
-        case 13: S.cal_step = 0; lz_go(LZ_V_TOUCHCAL); return;
-        case 14: S.settings.developer = !S.settings.developer; break;
+        case 2: cycle(&S.settings.airtime, LZ_AIRTIME_COUNT); lz_backend_set_airtime(S.settings.airtime); break;
+        case 3: cycle(&S.settings.tx, 4); lz_backend_set_tx_power(TXPOW_DBM[S.settings.tx]); break;
+        case 4: lz_go(LZ_V_WIFI); return;          /* Wi-Fi setup */
+        case 5: S.settings.gps = !S.settings.gps; break;
+        case 6: return;                            /* slider: left/right adjusts */
+        case 7: cycle(&S.settings.kb_light, 3); break;
+        case 8: cycle(&S.settings.timeout, 5); break;
+        case 9: lz_go(LZ_V_TZPICK); S.focus = S.settings.tz_idx; lz_rebuild(); return;
+        case 10: lz_settime_enter(); lz_go(LZ_V_SETTIME); return;
+        case 11: S.settings.clock24 = !S.settings.clock24; lz_svc_set_clock24(S.settings.clock24); break;
+        case 12: S.settings.save = !S.settings.save; break;
+        case 13: lz_go(LZ_V_SYSTEM); return;
+        case 14: S.cal_step = 0; lz_go(LZ_V_TOUCHCAL); return;
+        case 15: S.settings.developer = !S.settings.developer; break;
         default: persist = false; break;
     }
     if(persist) lz_settings_save();
@@ -185,7 +196,7 @@ void lz_scr_settings(lv_obj_t *root)
 {
     g_bright_fill = NULL;
     g_bright_knob = NULL;
-    bool mt = S.net_mt, mc = S.net_mc, both = mt && mc;
+    bool mt = S.net_mt, mc = S.net_mc && LZ_MESHCORE_ENABLED, both = mt && mc;
     lv_obj_set_flex_flow(root, LV_FLEX_FLOW_COLUMN);
     lz_navbar(root, "Settings", NULL);
 
@@ -197,6 +208,8 @@ void lz_scr_settings(lv_obj_t *root)
     lz_nav_set_scroll(body);
 
     /* --- airtime scheduler card --- */
+    int pref_mt, pref_mc;
+    lz_airtime_split_pct(S.settings.airtime, &pref_mt, &pref_mc);
     lv_obj_t *air = lz_card(body);
     lv_obj_set_height(air, LV_SIZE_CONTENT);
     lv_obj_set_style_pad_all(air, 9, 0);
@@ -209,7 +222,9 @@ void lz_scr_settings(lv_obj_t *root)
     lv_obj_set_flex_flow(ahead, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(ahead, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lz_text(ahead, "AIRTIME SCHEDULER", LZ_F_SMALL, lv_color_hex(0x7F868F));
-    const char *alabel = both ? "Split 50 / 50" : mt ? "Meshtastic 100%"
+    char split_label[36];
+    snprintf(split_label, sizeof split_label, "Split %d / %d", pref_mt, pref_mc);
+    const char *alabel = both ? split_label : mt ? "Meshtastic 100%"
                        : mc ? "MeshCore 100%" : "Idle";
     lz_text(ahead, alabel, LZ_F_SMALL, LZ_TEXT_VALUE);
 
@@ -221,8 +236,8 @@ void lz_scr_settings(lv_obj_t *root)
     lv_obj_set_style_bg_opa(abar, LV_OPA_COVER, 0);
     lv_obj_set_style_clip_corner(abar, true, 0);
     lv_obj_set_flex_flow(abar, LV_FLEX_FLOW_ROW);
-    int mt_pct = mt ? (both ? 50 : 100) : 0;
-    int mc_pct = mc ? (both ? 50 : 100) : 0;
+    int mt_pct = mt ? (both ? pref_mt : 100) : 0;
+    int mc_pct = mc ? (both ? pref_mc : 100) : 0;
     if(mt_pct) {
         lv_obj_t *seg = lz_box(abar);
         lv_obj_set_size(seg, lv_pct(mt_pct), lv_pct(100));
@@ -236,11 +251,15 @@ void lz_scr_settings(lv_obj_t *root)
         lv_obj_set_style_bg_opa(seg, LV_OPA_COVER, 0);
     }
 
-    const char *anote = both
-        ? "Both radios share airtime. Disable one to give the other full throughput and lower latency."
-        : (mt || mc)
-        ? "One network disabled - the active radio now has full airtime: faster delivery, lower latency."
-        : "Both networks disabled. Enable one to start receiving.";
+    char note[144];
+    if(both)
+        snprintf(note, sizeof note, "%s split. Disable one network to give the other full airtime.",
+                 lz_airtime_mode_label(S.settings.airtime));
+    else if(mt || mc)
+        snprintf(note, sizeof note, "One network disabled - the active radio now has full airtime.");
+    else
+        snprintf(note, sizeof note, "Both networks disabled. Enable one to start receiving.");
+    const char *anote = note;
     lv_obj_t *noteL = lz_text(air, anote, LZ_F_SMALL, lv_color_hex(0x7F868F));
     lv_label_set_long_mode(noteL, LV_LABEL_LONG_WRAP);
     lv_obj_set_width(noteL, lv_pct(100));
@@ -294,11 +313,11 @@ void lz_scr_settings(lv_obj_t *root)
 
     /* --- grouped rows --- */
     static const struct { const char *title; int first, count; } GROUPS[6] = {
-        { "RADIO",        2, 1 }, { "CONNECTIVITY", 3, 2 },
-        { "DISPLAY",      5, 3 }, { "TIME",         8, 3 },
-        { "POWER",       11, 1 }, { "DEVICE",      12, 3 },
+        { "RADIO",        2, 2 }, { "CONNECTIVITY", 4, 2 },
+        { "DISPLAY",      6, 3 }, { "TIME",         9, 3 },
+        { "POWER",       12, 1 }, { "DEVICE",      13, 3 },
     };
-    char bval[8];
+    char bval[32];
     for(int g = 0; g < 6; g++) {
         lv_obj_t *card = group_card(body, GROUPS[g].title);
         for(int k = 0; k < GROUPS[g].count; k++) {
@@ -309,11 +328,16 @@ void lz_scr_settings(lv_obj_t *root)
             lv_obj_t *lbl = lz_text(row, r->label, LZ_F_BODY, LZ_TEXT_SETTING);
             lv_obj_set_flex_grow(lbl, 1);
             switch(f) {
-                case 2: value_chevron(row, TXPOW[S.settings.tx]); break;
-                case 3: value_chevron(row, lz_wifi_connected() ? lz_wifi_connected()
+                case 2:
+                    snprintf(bval, sizeof bval, "%s %d/%d",
+                             airtime_short_label(S.settings.airtime), pref_mt, pref_mc);
+                    value_chevron(row, bval);
+                    break;
+                case 3: value_chevron(row, TXPOW[S.settings.tx]); break;
+                case 4: value_chevron(row, lz_wifi_connected() ? lz_wifi_connected()
                                           : (lz_wifi_enabled() ? "On" : "Off")); break;
-                case 4: lz_toggle(row, S.settings.gps, LZ_TOGGLE_ON); break;
-                case 5: {
+                case 5: lz_toggle(row, S.settings.gps, LZ_TOGGLE_ON); break;
+                case 6: {
                     /* brightness slider (left/right adjusts while focused) */
                     lv_obj_t *track = lz_box(row);
                     lv_obj_set_size(track, 96, 5);
@@ -329,29 +353,27 @@ void lz_scr_settings(lv_obj_t *root)
                     lz_settings_brightness_refresh();
                     break;
                 }
-                case 6: value_chevron(row, KBLIGHT[S.settings.kb_light]); break;
-                case 7: value_chevron(row, TIMEOUTS[S.settings.timeout]); break;
-                case 8: { char zb[24]; snprintf(zb, sizeof zb, "%s (%s)",
+                case 7: value_chevron(row, KBLIGHT[S.settings.kb_light]); break;
+                case 8: value_chevron(row, TIMEOUTS[S.settings.timeout]); break;
+                case 9: { char zb[24]; snprintf(zb, sizeof zb, "%s (%s)",
                                TZ[S.settings.tz_idx].name, lz_svc_tz_abbrev());
                            value_chevron(row, zb); break; }
-                case 9: { char tb[12]; value_chevron(row, lz_fmt_now(tb, sizeof tb)); break; }
-                case 10: value_chevron(row, S.settings.clock24 ? "24-hour" : "12-hour"); break;
-                case 11: lz_toggle(row, S.settings.save, LZ_TOGGLE_ON); break;
-                case 12: {
+                case 10: { char tb[12]; value_chevron(row, lz_fmt_now(tb, sizeof tb)); break; }
+                case 11: value_chevron(row, S.settings.clock24 ? "24-hour" : "12-hour"); break;
+                case 12: lz_toggle(row, S.settings.save, LZ_TOGGLE_ON); break;
+                case 13: {
                     lz_sysinfo_t si; lz_svc_sysinfo(&si);
                     char sb[16];
                     if(si.battery_pct >= 0) snprintf(sb, sizeof sb, "%d%% - %dC", si.battery_pct, si.temp_c);
                     else snprintf(sb, sizeof sb, "USB - %dC", si.temp_c);
                     value_chevron(row, sb); break;
                 }
-                case 13: value_chevron(row, ""); break;   /* Calibrate touch (NAV) */
-                case 14: lz_toggle(row, S.settings.developer, LZ_TOGGLE_ON); break;
+                case 14: value_chevron(row, ""); break;   /* Calibrate touch (NAV) */
+                case 15: lz_toggle(row, S.settings.developer, LZ_TOGGLE_ON); break;
             }
             lz_nav_track(row, f);
         }
     }
-    (void)bval;
-
     /* --- ABOUT (static) --- */
     lv_obj_t *about = group_card(body, "ABOUT");
     const char *ks[2] = { "Device", "Firmware" };

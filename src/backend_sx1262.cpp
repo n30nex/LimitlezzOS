@@ -77,15 +77,22 @@ static int      g_active = PROF_MT;       /* profile the radio is tuned to now *
 static uint32_t g_slot_until;             /* millis() when the current dwell ends (0 = LOCKED sentinel, no switching) */
 static uint32_t g_rx_guard_until;         /* hard cap for deferring a switch while a packet is mid-RX */
 static uint32_t g_ack_dwell_until;        /* no-yield window after our MC DM to catch its ACK (both-on only) */
-/* Asymmetric dwell FLOORS (both-on). MT (SF11/BW250) is ~3.5x slower on air than
- * MC (SF7/BW62.5), so MT gets more listen time -> ~60/40 wall-clock toward MT.
- * These are minimums: a blocking TX can run a slot long (the loop only re-evaluates
- * between blocking ops). Set equal for 50/50. */
-static const uint32_t SLOT_MS_MT  = 300;
-static const uint32_t SLOT_MS_MC  = 200;
+static int      g_airtime_mode = LZ_AIRTIME_DEFAULT;
+/* Both-on dwell floors. A blocking TX can run a slot long (the loop only
+ * re-evaluates between blocking ops), so these are targets rather than hard
+ * real-time guarantees. The default preserves the prior 300/200ms MT bias. */
+static const uint32_t SLOT_TOTAL_MS = 500;
 static const uint32_t ACK_DWELL_MC = 700; /* linger on MC after our want-ack DM (peer TXT_ACK_DELAY 200 + ack airtime + ~1 hop) */
 static uint32_t g_rx_mt, g_rx_mc;         /* per-network packet counts */
 static uint32_t g_switches;               /* TDM profile switches */
+
+static uint32_t slot_ms_for(int which)
+{
+    int mt_pct, mc_pct;
+    lz_airtime_split_pct(g_airtime_mode, &mt_pct, &mc_pct);
+    uint32_t pct = (uint32_t)(which == PROF_MT ? mt_pct : mc_pct);
+    return (SLOT_TOTAL_MS * pct + 50u) / 100u;
+}
 
 /* retune the radio to a profile and resume RX (the "switch modes" step) */
 static void apply_profile(int which)
@@ -109,7 +116,7 @@ static void apply_profile(int which)
 static void slot_begin(int which, uint32_t now)
 {
     apply_profile(which);
-    g_slot_until = now + (which == PROF_MT ? SLOT_MS_MT : SLOT_MS_MC);
+    g_slot_until = now + slot_ms_for(which);
     g_rx_guard_until = g_slot_until + (which == PROF_MT ? 2000u : 600u);
     g_ack_dwell_until = 0;   /* any retune ends a prior MC ACK-dwell; the MC DM re-arms after */
 }
@@ -1000,6 +1007,16 @@ extern "C" void lz_backend_set_networks(bool mt, bool mc)
     }
 }
 
+extern "C" void lz_backend_set_airtime(int mode)
+{
+    int next = lz_airtime_mode_clamp(mode);
+    if(g_airtime_mode == next) return;
+    g_airtime_mode = next;
+    if(!g_ok || !(g_net_mt && g_net_mc)) return;
+    drain_rx();
+    slot_begin(g_active, millis());
+}
+
 /* live-tune the MeshCore RF profile (serial `rf mc <freq> <bw> <sf> <cr> [sync]`).
  * sync < 0 leaves the sync word unchanged. */
 extern "C" void lz_backend_mc_tune(float freq, float bw, int sf, int cr, int sync)
@@ -1072,18 +1089,26 @@ extern "C" void lz_backend_mc_addr(char *buf, int n)
 /* one-line schedule/diagnostic summary for the serial console */
 extern "C" int lz_backend_tdm_info(char *buf, int n)
 {
-    const char *mode = (g_net_mt && g_net_mc) ? "SPLIT (round-robin)"
-                     : g_net_mt ? "Meshtastic 100%"
-                     : g_net_mc ? "MeshCore 100%" : "idle";
+    int mt_pct, mc_pct;
+    lz_airtime_split_pct(g_airtime_mode, &mt_pct, &mc_pct);
+    char mode[64];
+    if(g_net_mt && g_net_mc)
+        snprintf(mode, sizeof mode, "SPLIT MT %d%% / MC %d%% (%s)", mt_pct, mc_pct,
+                 lz_airtime_mode_label(g_airtime_mode));
+    else
+        snprintf(mode, sizeof mode, "%s", g_net_mt ? "Meshtastic 100%"
+                                      : g_net_mc ? "MeshCore 100%" : "idle");
     const rf_prof_t *a = &g_prof[g_active];
     uint32_t rem = (g_slot_until && millis() < g_slot_until) ? g_slot_until - millis() : 0;
     return snprintf(buf, n,
         "mode: %s\n"
+        "dwell: Meshtastic %lums / MeshCore %lums\n"
         "active: %s  %.3f MHz  BW %.1f  SF%d  CR4/%d  (slot %lums left)\n"
         "Meshtastic: %.3f MHz BW%.0f SF%d   rx %lu\n"
         "MeshCore:   %.3f MHz BW%.1f SF%d   rx %lu\n"
         "switches: %lu",
-        mode, g_active == PROF_MT ? "Meshtastic" : "MeshCore",
+        mode, (unsigned long)slot_ms_for(PROF_MT), (unsigned long)slot_ms_for(PROF_MC),
+        g_active == PROF_MT ? "Meshtastic" : "MeshCore",
         (double)a->freq, (double)a->bw, a->sf, a->cr, (unsigned long)rem,
         (double)g_prof[PROF_MT].freq, (double)g_prof[PROF_MT].bw, g_prof[PROF_MT].sf, (unsigned long)g_rx_mt,
         (double)g_prof[PROF_MC].freq, (double)g_prof[PROF_MC].bw, g_prof[PROF_MC].sf, (unsigned long)g_rx_mc,
