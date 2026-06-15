@@ -501,7 +501,7 @@ extern "C" void lz_mtc_ble_begin(void)
     char name[32];
     snprintf(name, sizeof name, "Limitlezz-%s", id->short_name[0] ? id->short_name : "TDeck");
 
-    NimBLEDevice::init(name);
+    if(!NimBLEDevice::init(name)) return;   /* controller init failed: leave g_ble_ready false */
     NimBLEDevice::setMTU(MTC_BLE_MAX_PACKET);
     g_ble_server = NimBLEDevice::createServer();
     g_ble_server->setCallbacks(&g_ble_server_cb, false);
@@ -551,7 +551,10 @@ extern "C" void lz_mtc_ble_set_enabled(bool on)
         if(lz_wifi_enabled()) lz_wifi_set_enabled(false);
         if(g_companion) g_companion = false;   /* one external app bridge at a time */
         if(!g_ble_ready) lz_mtc_ble_begin();
-        if(!g_ble_ready) return;               /* controller init failed (out of RAM) */
+        if(!g_ble_ready) {                     /* controller init failed (out of RAM): */
+            lz_wifi_set_enabled(true);         /* don't strand the user — restore WiFi */
+            return;
+        }
         g_ble_enabled = true;
         NimBLEDevice::startAdvertising();
     } else {
