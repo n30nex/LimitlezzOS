@@ -507,7 +507,12 @@ static void term_run(const char *cmd)
         if(!shown) term_put(2, "no nodes heard yet");
     } else if(strcmp(cmd, "airtime") == 0 || strcmp(cmd, "mesh --airtime") == 0) {
         lz_radio_stats_t st; lz_svc_radio_stats(&st);
+        int mt_pct, mc_pct;
+        lz_airtime_split_pct(S.settings.airtime, &mt_pct, &mc_pct);
         char l[64];
+        snprintf(l, sizeof l, "split %d/%d  %s", mt_pct, mc_pct,
+                 lz_airtime_mode_label(S.settings.airtime));
+        term_put(2, l);
         snprintf(l, sizeof l, "tx %u  rx %u  util %.1f%%",
                  (unsigned)st.tx_count, (unsigned)st.rx_count, (double)st.util_pct);
         term_put(2, l);

@@ -132,7 +132,7 @@ Deliverables:
   - Meshtastic delivery impact while MeshCore is enabled
   - MeshCore delivery impact while Meshtastic is enabled
 - Confirm target MeshCore RF profiles by region and define how they coexist with the LongFast-only product goal.
-- Build the split airtime config UI around simple choices, not raw radio parameters.
+- Build the split airtime config UI around simple choices, not raw radio parameters. Implemented: Settings now exposes Meshtastic first, Balanced, and MeshCore first presets, persists the choice, and reports the active dwell split through serial diagnostics.
 - Finish MeshCore packet handling:
   - ADVERT interop with real MeshCore nodes
   - public/default channel receive

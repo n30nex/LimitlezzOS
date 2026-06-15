@@ -69,7 +69,7 @@ typedef struct {
     int cal_step;          /* touch calibration: which target (0..2) */
 
     struct {
-        int region, preset, tx;               /* cycle indices */
+        int region, preset, airtime, tx;      /* cycle indices */
         bool wifi, gps, dark, save;
         int bright;                           /* 5..100 */
         int timeout;                          /* cycle index */

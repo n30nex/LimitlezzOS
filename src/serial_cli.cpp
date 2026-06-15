@@ -17,6 +17,7 @@
 /* TDM / radio-profile hooks (implemented in backend_sx1262.cpp). Declared weak
  * so the console links even on builds without the scheduler. */
 extern "C" void lz_backend_set_networks(bool mt, bool mc) __attribute__((weak));
+extern "C" void lz_backend_set_airtime(int mode)          __attribute__((weak));
 extern "C" int  lz_backend_tdm_info(char *buf, int n)     __attribute__((weak));
 extern "C" void lz_backend_mc_tune(float freq, float bw, int sf, int cr, int sync) __attribute__((weak));
 extern "C" int  lz_backend_mc_id(char *buf, int n)        __attribute__((weak));
@@ -50,6 +51,7 @@ static void cmd_help(void)
         "  tz <name|abbr|idx>   set timezone (e.g. tz Eastern, tz PST, tz 3)\n"
         "  net                  show network enable state\n"
         "  net mt|mc on|off     enable/disable a network (drives TDM)\n"
+        "  airtime [mt|balanced|mc]  show/set split preference\n"
         "  rf                   show radio profile + TDM schedule\n"
         "  rf mc <f> <bw> <sf> <cr> [sync]  tune MeshCore RF (e.g. rf mc 910.525 62.5 7 5)\n"
         "  mc                   show our MeshCore identity (pubkey)\n"
@@ -140,6 +142,29 @@ static void cmd_net(char *args)
                   S.net_mt ? "on" : "off", S.net_mc ? "on" : "off");
 }
 
+static void cmd_airtime(char *args)
+{
+    if(args && args[0]) {
+        int mode = -1;
+        if(strcmp(args, "mt") == 0 || strcmp(args, "meshtastic") == 0 || strcmp(args, "mt-first") == 0)
+            mode = LZ_AIRTIME_MT_FIRST;
+        else if(strcmp(args, "balanced") == 0 || strcmp(args, "balance") == 0 || strcmp(args, "50") == 0)
+            mode = LZ_AIRTIME_BALANCED;
+        else if(strcmp(args, "mc") == 0 || strcmp(args, "meshcore") == 0 || strcmp(args, "mc-first") == 0)
+            mode = LZ_AIRTIME_MC_FIRST;
+        if(mode < 0) { Serial.println("usage: airtime [mt|balanced|mc]"); return; }
+        S.settings.airtime = mode;
+        if(lz_backend_set_airtime) lz_backend_set_airtime(mode);
+        lz_settings_save();
+        lz_rebuild();
+        Serial.println("[ok] airtime updated");
+    }
+    int mt_pct, mc_pct;
+    lz_airtime_split_pct(S.settings.airtime, &mt_pct, &mc_pct);
+    Serial.printf("airtime: %s  MT %d%% / MC %d%%\n",
+                  lz_airtime_mode_label(S.settings.airtime), mt_pct, mc_pct);
+}
+
 static void cmd_rf(char *args)
 {
     /* `rf mc <freq> <bw> <sf> <cr> [sync]` live-tunes the MeshCore profile */
@@ -152,7 +177,7 @@ static void cmd_rf(char *args)
         }
     }
     if(lz_backend_tdm_info) {
-        char buf[300];
+        char buf[420];
         lz_backend_tdm_info(buf, sizeof buf);
         Serial.println(buf);
     } else {
@@ -387,6 +412,7 @@ static void dispatch(char *line)
     else if(!strcmp(line, "settime")) cmd_settime(args);
     else if(!strcmp(line, "tz"))      cmd_tz(args);
     else if(!strcmp(line, "net"))     cmd_net(args);
+    else if(!strcmp(line, "airtime")) cmd_airtime(args);
     else if(!strcmp(line, "rf"))      cmd_rf(args);
     else if(!strcmp(line, "mc"))      cmd_mc(args);
     else if(!strcmp(line, "companion")) cmd_companion(args);

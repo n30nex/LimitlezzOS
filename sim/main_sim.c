@@ -39,6 +39,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#define SIM_MKDIR(path) _mkdir(path)
+#else
+#define SIM_MKDIR(path) mkdir(path, 0777)
+#endif
 
 #define SCALE 2
 
@@ -58,6 +66,22 @@ static void on_dirty(void) { lz_rebuild(); }
 /* mouse = touchscreen */
 static int32_t m_x, m_y;
 static bool m_down;
+
+static void sim_reset_dir(const char *dir)
+{
+    DIR *d = opendir(dir);
+    if(d) {
+        struct dirent *ent;
+        while((ent = readdir(d)) != NULL) {
+            if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+            char path[256];
+            snprintf(path, sizeof path, "%s/%s", dir, ent->d_name);
+            remove(path);
+        }
+        closedir(d);
+    }
+    SIM_MKDIR(dir);
+}
 
 static void mouse_read_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
 {
@@ -282,7 +306,7 @@ static void shots(const char *dir)
     /* regression: focus moving below the fold must autoscroll (settings
      * rows are nested in group cards -> needs recursive scroll-to-view) */
     S.view = LZ_V_SETTINGS; S.focus = 0; lz_rebuild();
-    for(int i = 0; i < 7; i++) lz_ui_key(LZ_K_DOWN, 0);   /* down to Brightness */
+    for(int i = 0; i < 8 && S.focus != 6; i++) lz_ui_key(LZ_K_DOWN, 0);   /* down to Brightness */
     pump(60);
     snprintf(path, sizeof path, "%s/25-settings-autoscroll.bmp", dir);
     write_bmp(path); printf("wrote %s\n", path);
@@ -613,7 +637,7 @@ int main(int argc, char **argv)
     const char *datadir = "lzdata";
     if(headless) {
         datadir = "lzdata_shots";
-        system("rm -rf lzdata_shots && mkdir -p lzdata_shots");
+        sim_reset_dir(datadir);
     }
     lz_svc_init(datadir, true);
     lz_svc_set_time(1781274180);   /* sim: pretend NTP synced so the clock shows */

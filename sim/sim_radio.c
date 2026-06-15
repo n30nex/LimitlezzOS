@@ -10,6 +10,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#define SIM_MKDIR(path) _mkdir(path)
+#else
+#define SIM_MKDIR(path) mkdir(path, 0777)
+#endif
 
 extern uint32_t lz_tick_ms(void);
 
@@ -129,9 +137,11 @@ static void roster_init(void)
 
 static lz_radio_stats_t g_stats = { 412, 1284, 3.4f };
 static bool g_net_mt = true, g_net_mc = false;   /* mirrors lz_backend_set_networks */
+static int  g_airtime_mode = LZ_AIRTIME_DEFAULT;
 
 bool sim_net_mt_tuned(void) { return g_net_mt; }
 bool sim_net_mc_tuned(void) { return g_net_mc; }
+int  sim_radio_airtime_mode(void) { return g_airtime_mode; }
 
 /* TDM gate: a network's inbound traffic is only delivered while it's tuned in.
  * (Mirrors the real backend, where you can only receive on the profile the
@@ -142,6 +152,7 @@ static bool tuned(lz_net_t net)
 }
 
 void sim_radio_set_networks(bool mt, bool mc) { g_net_mt = mt; g_net_mc = mc; }
+void sim_radio_set_airtime(int mode) { g_airtime_mode = lz_airtime_mode_clamp(mode); }
 void sim_radio_stats(lz_radio_stats_t *out) { *out = g_stats; }
 
 /* ======================================================================== *
@@ -649,6 +660,22 @@ static int g_fails;
         if(cond) printf("ok  : %s\n", msg); \
         else { printf("FAIL: %s\n", msg); g_fails++; } } while(0)
 
+static void sim_reset_dir(const char *dir)
+{
+    DIR *d = opendir(dir);
+    if(d) {
+        struct dirent *ent;
+        while((ent = readdir(d)) != NULL) {
+            if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+            char path[256];
+            snprintf(path, sizeof path, "%s/%s", dir, ent->d_name);
+            remove(path);
+        }
+        closedir(d);
+    }
+    SIM_MKDIR(dir);
+}
+
 /* count messages in a thread's persisted tail */
 static int thread_tail_len(lz_thread_rt *t)
 {
@@ -664,11 +691,12 @@ int sim_scenario_run(void)
     g_fails = 0;
     g_seen_w = 0; memset(g_seen, 0, sizeof g_seen);
     g_air_id = 0xA1000000;
+    g_airtime_mode = LZ_AIRTIME_DEFAULT;
     roster_init();
 
     /* clean slate: a wiped on-disk store (so tail counts are real and
      * persistence is exercised), no demo seed, both networks tuned in */
-    system("rm -rf lzdata_simtest && mkdir -p lzdata_simtest");
+    sim_reset_dir("lzdata_simtest");
     lz_svc_init("lzdata_simtest", false);
     lz_svc_set_time(1781274180);
     g_net_mt = true; g_net_mc = true;
@@ -776,6 +804,18 @@ int sim_scenario_run(void)
         g_net_mc = true;
         ST_CHECK(mc_emit_advert(peer_by_name("Dmitri K"), 2.0f),
                  "TDM: MeshCore advert delivered once tuned back in");
+    }
+
+    /* 12. split preference: shared UI setting reaches the backend contract */
+    {
+        int mt_pct, mc_pct;
+        lz_backend_set_airtime(LZ_AIRTIME_MC_FIRST);
+        lz_airtime_split_pct(sim_radio_airtime_mode(), &mt_pct, &mc_pct);
+        ST_CHECK(sim_radio_airtime_mode() == LZ_AIRTIME_MC_FIRST,
+                 "TDM: airtime preference applied to backend");
+        ST_CHECK(mt_pct == 40 && mc_pct == 60,
+                 "TDM: MeshCore-first split resolves to 40/60");
+        lz_backend_set_airtime(LZ_AIRTIME_DEFAULT);
     }
 
     /* sanity: we created real conversations */

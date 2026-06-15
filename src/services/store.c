@@ -385,8 +385,9 @@ void lz_store_save_settings(const lz_user_settings_t *s)
     snprintf(tmp, sizeof tmp, "%s.tmp", path);
     FILE *f = fopen(tmp, "w");
     if(!f) return;
-    fprintf(f, "2 %d %d %d %d %d %d %d %d %d %d %d\n",
-            s->net_mt ? 1 : 0, s->net_mc ? 1 : 0, s->tx, s->gps ? 1 : 0,
+    fprintf(f, "3 %d %d %d %d %d %d %d %d %d %d %d %d\n",
+            s->net_mt ? 1 : 0, s->net_mc ? 1 : 0, lz_airtime_mode_clamp(s->airtime),
+            s->tx, s->gps ? 1 : 0,
             s->bright, s->timeout, s->kb_light, s->tz_idx,
             s->clock24 ? 1 : 0, s->save ? 1 : 0, s->developer ? 1 : 0);
     fclose(f);
@@ -405,13 +406,25 @@ bool lz_store_load_settings(lz_user_settings_t *s)
     bool have_line = fgets(line, sizeof line, f) != NULL;
     fclose(f);
     if(!have_line) return false;
-    int ver, mt, mc, tx, gps, bright, timeout, kb, tz, clock24, save, developer = 0;
-    int got = sscanf(line, "%d %d %d %d %d %d %d %d %d %d %d %d",
-                     &ver, &mt, &mc, &tx, &gps, &bright, &timeout, &kb, &tz,
-                     &clock24, &save, &developer);
-    if(!((ver == 1 && got == 11) || (ver == 2 && got == 12))) return false;
+    int ver = 0;
+    if(sscanf(line, "%d", &ver) != 1) return false;
+    int mt, mc, airtime = LZ_AIRTIME_DEFAULT, tx, gps, bright, timeout, kb, tz, clock24, save, developer = 0;
+    if(ver == 3) {
+        int got = sscanf(line, "%d %d %d %d %d %d %d %d %d %d %d %d %d",
+                         &ver, &mt, &mc, &airtime, &tx, &gps, &bright, &timeout, &kb, &tz,
+                         &clock24, &save, &developer);
+        if(got != 13) return false;
+    } else if(ver == 1 || ver == 2) {
+        int got = sscanf(line, "%d %d %d %d %d %d %d %d %d %d %d %d",
+                         &ver, &mt, &mc, &tx, &gps, &bright, &timeout, &kb, &tz,
+                         &clock24, &save, &developer);
+        if(!((ver == 1 && got == 11) || (ver == 2 && got == 12))) return false;
+    } else {
+        return false;
+    }
     s->net_mt = mt != 0;
     s->net_mc = mc != 0;
+    s->airtime = lz_airtime_mode_clamp(airtime);
     s->tx = tx;
     s->gps = gps != 0;
     s->bright = bright;
