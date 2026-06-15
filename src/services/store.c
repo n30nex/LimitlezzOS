@@ -90,6 +90,63 @@ static bool path_mkdir(const char *path)
 #endif
 }
 
+#define LZ_APP_DATA_MAX_ENTRIES 96
+#define LZ_APP_DATA_MAX_DEPTH 3
+
+static void set_err(char *err, int err_cap, const char *msg)
+{
+    if(err && err_cap > 0) snprintf(err, (size_t)err_cap, "%s", msg);
+}
+
+static bool app_data_usage_walk(const char *dir, int depth, int *entries,
+                                uint32_t *used, char *err, int err_cap)
+{
+    if(depth > LZ_APP_DATA_MAX_DEPTH) {
+        set_err(err, err_cap, "data too deep");
+        return false;
+    }
+    DIR *d = opendir(dir);
+    if(!d) {
+        set_err(err, err_cap, "data scan failed");
+        return false;
+    }
+
+    struct dirent *e;
+    while((e = readdir(d)) != NULL) {
+        if(strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+        if(++(*entries) > LZ_APP_DATA_MAX_ENTRIES) {
+            closedir(d);
+            set_err(err, err_cap, "data too many files");
+            return false;
+        }
+
+        char path[160];
+        path_join(path, sizeof path, dir, e->d_name);
+        struct stat st;
+        if(stat(path, &st) != 0) {
+            closedir(d);
+            set_err(err, err_cap, "data scan failed");
+            return false;
+        }
+        if(S_ISDIR(st.st_mode)) {
+            if(!app_data_usage_walk(path, depth + 1, entries, used, err, err_cap)) {
+                closedir(d);
+                return false;
+            }
+        } else {
+            uint32_t sz = 0;
+            if(st.st_size > 0) {
+                unsigned long long raw_size = (unsigned long long)st.st_size;
+                sz = raw_size > UINT32_MAX ? UINT32_MAX : (uint32_t)raw_size;
+            }
+            if(UINT32_MAX - *used < sz) *used = UINT32_MAX;
+            else *used += sz;
+        }
+    }
+    closedir(d);
+    return true;
+}
+
 /* ---- local app manifests ----
  *
  * First V0.95 app-platform increment: discover installable local app packages
@@ -458,6 +515,26 @@ bool lz_store_prepare_app_data(const lz_local_app_t *app, char *path_out, int pa
     return true;
 }
 
+bool lz_store_app_data_usage(const lz_local_app_t *app, uint32_t *used, uint32_t *quota,
+                             char *err, int err_cap)
+{
+    if(used) *used = 0;
+    if(quota) *quota = LZ_LOCAL_APP_DATA_QUOTA_BYTES;
+    if(err && err_cap > 0) err[0] = 0;
+    if(!app || !app->path[0] || !path_is_dir(app->path)) {
+        set_err(err, err_cap, "package missing");
+        return false;
+    }
+    char data[128];
+    path_join(data, sizeof data, app->path, "data");
+    if(!path_is_dir(data)) return true;
+    int entries = 0;
+    uint32_t total = 0;
+    if(!app_data_usage_walk(data, 0, &entries, &total, err, err_cap)) return false;
+    if(used) *used = total;
+    return true;
+}
+
 /* SDK 0.1 launch shell: load bounded display metadata from the app entry file
  * without executing script code or granting hardware access. */
 bool lz_store_start_local_app(const lz_local_app_t *app, lz_local_app_session_t *out)
@@ -482,14 +559,25 @@ bool lz_store_start_local_app(const lz_local_app_t *app, lz_local_app_session_t 
                                       err, sizeof err))
             return app_session_fail(out, app, err[0] ? err : "storage unavailable");
         out->storage_ready = true;
+        if(!lz_store_app_data_usage(app, &out->data_used_bytes, &out->data_quota_bytes,
+                                    err, sizeof err))
+            return app_session_fail(out, app, err[0] ? err : "data scan failed");
+        if(out->data_used_bytes > out->data_quota_bytes)
+            return app_session_fail(out, app, "data quota exceeded");
     }
 
     char entry_path[160];
     path_join(entry_path, sizeof entry_path, app->path, app->entry);
+    struct stat st;
+    if(stat(entry_path, &st) != 0 || S_ISDIR(st.st_mode))
+        return app_session_fail(out, app, "missing entry file");
+    if(st.st_size < 0 || (unsigned long long)st.st_size > LZ_LOCAL_APP_ENTRY_MAX)
+        return app_session_fail(out, app, "entry too large");
+
     FILE *f = fopen(entry_path, "rb");
     if(!f) return app_session_fail(out, app, "missing entry file");
 
-    char raw[1025];
+    char raw[LZ_LOCAL_APP_ENTRY_MAX + 1];
     size_t n = fread(raw, 1, sizeof raw - 1, f);
     fclose(f);
     raw[n] = 0;

@@ -17,6 +17,8 @@ int  lz_store_scan_apps(lz_local_app_t *out, int cap);
 int  lz_store_scan_app_issues(lz_local_app_issue_t *out, int cap);
 bool lz_store_prepare_app_data(const lz_local_app_t *app, char *path_out, int path_cap,
                                char *err, int err_cap);
+bool lz_store_app_data_usage(const lz_local_app_t *app, uint32_t *used, uint32_t *quota,
+                             char *err, int err_cap);
 bool lz_store_start_local_app(const lz_local_app_t *app, lz_local_app_session_t *out);
 void lz_store_append(const char *addr, const lz_msg_rt *m);
 int  lz_store_load_tail(const char *addr, lz_msg_rt *ring, int cap);
@@ -271,6 +273,12 @@ bool lz_svc_prepare_app_data(const lz_local_app_t *app, char *path_out, int path
                              char *err, int err_cap)
 {
     return lz_store_prepare_app_data(app, path_out, path_cap, err, err_cap);
+}
+
+bool lz_svc_app_data_usage(const lz_local_app_t *app, uint32_t *used, uint32_t *quota,
+                           char *err, int err_cap)
+{
+    return lz_store_app_data_usage(app, used, quota, err, err_cap);
 }
 
 bool lz_svc_start_local_app(const lz_local_app_t *app, lz_local_app_session_t *out)

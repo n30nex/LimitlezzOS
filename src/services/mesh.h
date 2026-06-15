@@ -29,6 +29,8 @@ extern "C" {
 #define LZ_MAX_LOCAL_APPS 12
 #define LZ_MAX_LOCAL_APP_ISSUES 8
 #define LZ_LOCAL_APP_BODY_MAX 360
+#define LZ_LOCAL_APP_ENTRY_MAX 1024u
+#define LZ_LOCAL_APP_DATA_QUOTA_BYTES (64u * 1024u)
 
 #define LZ_APP_PERM_DISPLAY       0x0001u
 #define LZ_APP_PERM_INPUT         0x0002u
@@ -162,6 +164,8 @@ typedef struct {
     char status[64];             /* short runtime/sandbox state */
     char data_path[112];         /* prepared only when storage is declared */
     char error[48];              /* launch blocked reason, if any */
+    uint32_t data_used_bytes;
+    uint32_t data_quota_bytes;
     bool entry_loaded;
     bool storage_ready;
 } lz_local_app_session_t;
@@ -175,6 +179,8 @@ int  lz_svc_scan_apps(lz_local_app_t *out, int cap);    /* SD/appfs local manife
 int  lz_svc_scan_app_issues(lz_local_app_issue_t *out, int cap); /* rejected manifests */
 bool lz_svc_prepare_app_data(const lz_local_app_t *app, char *path_out, int path_cap,
                              char *err, int err_cap);   /* scoped app data dir */
+bool lz_svc_app_data_usage(const lz_local_app_t *app, uint32_t *used, uint32_t *quota,
+                           char *err, int err_cap);
 bool lz_svc_start_local_app(const lz_local_app_t *app, lz_local_app_session_t *out);
 
 /* ---- nodes ---- */

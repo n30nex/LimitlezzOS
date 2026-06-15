@@ -42,9 +42,11 @@ Each package directory must contain:
   exist
 
 The current SDK 0.1 foreground shell reads only bounded display metadata from
-the entry file. It accepts optional `title:`, `status:`, `body:`, or `text:`
-lines, including Lua-comment style lines such as `-- body: Local dashboard`.
-Script execution and API injection are still later runtime work.
+the entry file. The entry metadata budget is 1 KB; larger entry files are shown
+as launch-blocked instead of being truncated. It accepts optional `title:`,
+`status:`, `body:`, or `text:` lines, including Lua-comment style lines such as
+`-- body: Local dashboard`. Script execution and API injection are still later
+runtime work.
 
 Example:
 
@@ -109,8 +111,12 @@ The scanner rejects packages when:
 - `permissions` is not an array of supported namespace strings
 
 The current firmware scans local app manifests and can open them in a safe
-foreground shell. Script execution, sandbox API injection, app data quotas, and
+foreground shell. Script execution, sandbox API injection, richer data APIs, and
 network catalog installs remain later app-platform work. Permission metadata is
 parsed and displayed now so packages can fail closed before richer runtime APIs
 are added, and apps that declare `storage` get a scoped `data/` directory
 prepared under their own package.
+
+Storage-enabled local apps have a 64 KB `data/` quota in this early shell. The
+App Store detail and foreground shell show current usage, and over-quota apps
+are launch-blocked before any future runtime code can run.

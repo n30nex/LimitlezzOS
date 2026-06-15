@@ -246,13 +246,16 @@ Deliverables:
   - mesh send/receive API through the service, not radio hardware
   - storage API scoped to app directory. Groundwork implemented: accepted local
     apps that declare `storage` get `<package>/data` prepared and surfaced in
-    the detail shell; runtime API calls and quotas remain below.
+    the detail shell, and launch is blocked when the current `data/` tree
+    exceeds the early 64 KB quota; runtime API calls and richer quota controls
+    remain below.
   - notification request API routed through Feedback Manager
   - no direct hardware access
 - Add Developer Mode app diagnostics and crash/error display. Partially
   implemented: rejected local package folders appear in App Store under
   Developer Mode with bounded rejection reasons; launch-blocked errors render in
-  the local app foreground shell, while runtime crash capture remains below.
+  the local app foreground shell for oversized entry files and over-quota app
+  data, while runtime crash capture remains below.
 - Convert prototype catalog examples into installable sample apps where practical:
   - Calculator
   - Notes

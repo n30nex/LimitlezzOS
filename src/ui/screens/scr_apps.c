@@ -295,6 +295,19 @@ static void app_perm_list(uint16_t perms, char *out, size_t cap)
     if(!out[0]) snprintf(out, cap, "none");
 }
 
+static void app_data_quota_label(uint32_t used, uint32_t quota, char *out, size_t cap)
+{
+    if(!out || cap == 0) return;
+    uint32_t uk = (used + 1023u) / 1024u;
+    uint32_t qk = quota ? (quota + 1023u) / 1024u : 0;
+    if(quota && used > quota)
+        snprintf(out, cap, "over quota: %lu / %lu KB", (unsigned long)uk, (unsigned long)qk);
+    else if(quota)
+        snprintf(out, cap, "data/ %lu / %lu KB", (unsigned long)uk, (unsigned long)qk);
+    else
+        snprintf(out, cap, "data/ ready");
+}
+
 void lz_start_local_app(void)
 {
     (void)lz_svc_start_local_app(&S.local_app_sel, &S.local_app_run);
@@ -373,16 +386,21 @@ void lz_scr_local_app(lv_obj_t *root)
 
     char api[28];
     char perms[104];
-    char storage[64];
+    char storage[80];
     char data_path[112];
     char data_err[48];
     snprintf(api, sizeof api, "SDK %s", a->api_version);
     app_perm_list(a->permissions, perms, sizeof perms);
     if(a->permissions & LZ_APP_PERM_STORAGE) {
-        if(lz_svc_prepare_app_data(a, data_path, sizeof data_path, data_err, sizeof data_err))
-            snprintf(storage, sizeof storage, "data/ ready");
-        else
+        if(lz_svc_prepare_app_data(a, data_path, sizeof data_path, data_err, sizeof data_err)) {
+            uint32_t used = 0, quota = 0;
+            if(lz_svc_app_data_usage(a, &used, &quota, data_err, sizeof data_err))
+                app_data_quota_label(used, quota, storage, sizeof storage);
+            else
+                snprintf(storage, sizeof storage, "unavailable: %s", data_err[0] ? data_err : "unknown");
+        } else {
             snprintf(storage, sizeof storage, "unavailable: %s", data_err[0] ? data_err : "unknown");
+        }
     } else {
         snprintf(storage, sizeof storage, "not requested");
     }
@@ -480,8 +498,10 @@ void lz_scr_local_app_run(lv_obj_t *root)
     char storage[80];
     app_perm_list(a->permissions, perms, sizeof perms);
     if(a->permissions & LZ_APP_PERM_STORAGE) {
-        snprintf(storage, sizeof storage, "%s",
-                 r->storage_ready ? "data/ ready" : "storage unavailable");
+        if(r->storage_ready)
+            app_data_quota_label(r->data_used_bytes, r->data_quota_bytes, storage, sizeof storage);
+        else
+            snprintf(storage, sizeof storage, "storage unavailable");
     } else {
         snprintf(storage, sizeof storage, "not requested");
     }

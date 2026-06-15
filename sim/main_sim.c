@@ -74,6 +74,14 @@ static void sim_mkdirs(const char *path)
     system(cmd);
 }
 
+static void sim_write_bytes(const char *path, int bytes)
+{
+    FILE *f = fopen(path, "wb");
+    if(!f) return;
+    for(int i = 0; i < bytes; i++) fputc('x', f);
+    fclose(f);
+}
+
 static void sim_write_local_app(const char *datadir, const char *slug,
                                 const char *id, const char *name,
                                 const char *entry_name, const char *icon,
@@ -657,6 +665,8 @@ static int codec_selftest(void)
         extern int  lz_store_scan_app_issues(lz_local_app_issue_t *out, int cap);
         extern bool lz_store_prepare_app_data(const lz_local_app_t *app, char *path_out, int path_cap,
                                               char *err, int err_cap);
+        extern bool lz_store_app_data_usage(const lz_local_app_t *app, uint32_t *used, uint32_t *quota,
+                                            char *err, int err_cap);
         extern bool lz_store_start_local_app(const lz_local_app_t *app, lz_local_app_session_t *out);
         sim_reset_dir("lzdata_appscan");
         sim_mkdirs("lzdata_appscan/apps/weather");
@@ -709,6 +719,12 @@ static int codec_selftest(void)
         CHECK(data_ok, "local app storage sandbox prepares");
         CHECK(data_ok && strstr(data_path, "weather/data") != NULL,
               "local app storage sandbox stays inside package");
+        sim_write_bytes("lzdata_appscan/apps/weather/data/cache.bin", 1536);
+        uint32_t used = 0, quota = 0;
+        bool usage_ok = an == 1 && lz_store_app_data_usage(&apps[0], &used, &quota,
+                                                           data_err, sizeof data_err);
+        CHECK(usage_ok && used == 1536, "local app data quota counts bytes");
+        CHECK(usage_ok && quota == LZ_LOCAL_APP_DATA_QUOTA_BYTES, "local app data quota is reported");
         lz_local_app_session_t run;
         bool run_ok = an == 1 && lz_store_start_local_app(&apps[0], &run);
         CHECK(run_ok, "local app foreground session starts");
@@ -716,11 +732,34 @@ static int codec_selftest(void)
               "local app foreground session reads entry metadata");
         CHECK(run_ok && strstr(run.body, "Local weather dashboard") != NULL,
               "local app foreground session renders bounded body text");
-        CHECK(run_ok && run.storage_ready && strstr(run.data_path, "weather/data") != NULL,
+        CHECK(run_ok && run.storage_ready && strstr(run.data_path, "weather/data") != NULL &&
+              run.data_used_bytes == 1536,
               "local app foreground session keeps scoped storage");
+        sim_write_bytes("lzdata_appscan/apps/weather/data/too-big.bin",
+                        (int)LZ_LOCAL_APP_DATA_QUOTA_BYTES);
+        lz_local_app_session_t over;
+        bool over_ok = an == 1 && lz_store_start_local_app(&apps[0], &over);
+        CHECK(!over_ok && strcmp(over.error, "data quota exceeded") == 0,
+              "local app foreground session blocks over-quota data");
+        sim_mkdirs("lzdata_appscan/apps/huge");
+        FILE *hm = fopen("lzdata_appscan/apps/huge/manifest.json", "wb");
+        if(hm) {
+            fputs("{\"id\":\"huge.local\",\"name\":\"Huge Entry\",\"entry\":\"main.lua\"}", hm);
+            fclose(hm);
+        }
+        sim_write_bytes("lzdata_appscan/apps/huge/main.lua", (int)LZ_LOCAL_APP_ENTRY_MAX + 1);
         lz_local_app_issue_t issues[4];
         int in = lz_store_scan_app_issues(issues, 4);
         bool bad_id = false, bad_perm = false;
+        lz_local_app_t huge_apps[4];
+        int hn = lz_store_scan_apps(huge_apps, 4);
+        lz_local_app_t *huge = NULL;
+        for(int i = 0; i < hn; i++)
+            if(strcmp(huge_apps[i].id, "huge.local") == 0) huge = &huge_apps[i];
+        lz_local_app_session_t huge_run;
+        bool huge_ok = huge && lz_store_start_local_app(huge, &huge_run);
+        CHECK(!huge_ok && huge && strcmp(huge_run.error, "entry too large") == 0,
+              "local app foreground session blocks oversized entry");
         for(int i = 0; i < in; i++) {
             if(strcmp(issues[i].package, "bad") == 0 &&
                strcmp(issues[i].reason, "unsafe id") == 0) bad_id = true;
