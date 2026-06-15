@@ -22,7 +22,7 @@ extern "C" {
 typedef enum {
     LZ_V_ONBOARD, LZ_V_LOCK, LZ_V_HOME, LZ_V_MESSAGES, LZ_V_CONVO,
     LZ_V_MESHTASTIC, LZ_V_MESHCORE, LZ_V_APPSTORE,
-    LZ_V_CONTACTS, LZ_V_CONTACT, LZ_V_SETTINGS,
+    LZ_V_LOCALAPP, LZ_V_CONTACTS, LZ_V_CONTACT, LZ_V_SETTINGS,
     LZ_V_SYSTEM, LZ_V_TERMINAL, LZ_V_FILES, LZ_V_WIFI, LZ_V_SETTIME, LZ_V_TZPICK,
     LZ_V_TOUCHCAL,
     LZ_V_COUNT
@@ -66,6 +66,7 @@ typedef struct {
     int mt_tab;            /* 0 nodes, 1 channels  */
     int mc_tab;            /* 0 contacts, 1 rooms  */
     lz_node_rt *contact_sel;
+    lz_local_app_t local_app_sel;
     int cal_step;          /* touch calibration: which target (0..2) */
 
     struct {
@@ -122,6 +123,7 @@ bool lz_convo_draft_refresh(void);       /* update compose text without a full r
 void lz_scr_meshtastic(lv_obj_t *root);
 void lz_scr_meshcore(lv_obj_t *root);
 void lz_scr_appstore(lv_obj_t *root);
+void lz_scr_local_app(lv_obj_t *root);
 void lz_scr_contacts(lv_obj_t *root);
 void lz_scr_contact(lv_obj_t *root);
 void lz_scr_settings(lv_obj_t *root);

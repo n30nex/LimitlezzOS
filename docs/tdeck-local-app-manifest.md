@@ -1,0 +1,71 @@
+# Local App Manifest
+
+Local apps are the first V0.95 app-platform step. They are scanned from local
+storage only; there is no network catalog, download, or script runtime in this
+step.
+
+## Search Paths
+
+On T-Deck hardware, packages are discovered from:
+
+- `/sd/limitlezz/apps/<app-id>/`
+- `/sd/apps/<app-id>/`
+- `/appfs/apps/<app-id>/`
+
+In the native simulator, packages are discovered from:
+
+- `<sim-data-dir>/apps/<app-id>/`
+
+## Package Layout
+
+Each package directory must contain:
+
+- `manifest.json`
+- the manifest `entry` file, relative to the package directory
+- optional assets or per-app data files
+
+Example:
+
+```json
+{
+  "id": "weather.mesh",
+  "name": "Weather Mesh",
+  "version": "0.1.0",
+  "author": "Limitless",
+  "summary": "Local weather dashboard",
+  "entry": "main.lua",
+  "icon": "weather",
+  "hue": 48
+}
+```
+
+## Accepted Fields
+
+Required:
+
+- `id`: letters, numbers, `_`, `-`, or `.`
+- `name`: display name
+- `entry`: relative entry file path
+
+Optional:
+
+- `version`: shown in App Store and app detail, defaults to `0.0.0`
+- `author`: shown in App Store and app detail, defaults to `local`
+- `summary` or `description`: short display text
+- `icon`: token such as `calculate`, `note`, `weather`, `map`, `game`,
+  `terminal`, `folder`, or `description`
+- `hue`: tile hue hint; unsupported values fall back to the neutral tile color
+
+## Safety Rules
+
+The scanner rejects packages when:
+
+- `manifest.json` is missing, empty, or larger than the bounded parser accepts
+- required fields are missing
+- `id` contains path separators or unsafe characters
+- `entry` is absolute, contains `..`, contains a Windows drive separator, or is
+  missing on disk
+
+The current firmware only scans and displays local app manifests. Script
+execution, sandbox APIs, permissions, app data quotas, and network catalog
+installs remain later app-platform work.

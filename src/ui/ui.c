@@ -275,6 +275,7 @@ void lz_rebuild(void)
         case LZ_V_MESHTASTIC: lz_scr_meshtastic(g_root); break;
         case LZ_V_MESHCORE:   lz_scr_meshcore(g_root); break;
         case LZ_V_APPSTORE:   lz_scr_appstore(g_root); break;
+        case LZ_V_LOCALAPP:   lz_scr_local_app(g_root); break;
         case LZ_V_CONTACTS:   lz_scr_contacts(g_root); break;
         case LZ_V_CONTACT:    lz_scr_contact(g_root); break;
         case LZ_V_SETTINGS:   lz_scr_settings(g_root); break;

@@ -134,6 +134,13 @@ void lz_scr_lock(lv_obj_t *root)
 
 /* ===== Home ===== */
 
+#define HOME_MAX_CELLS 8
+#define HOME_LOCAL_MAX 1
+
+static int home_builtin_n;
+static int home_local_n;
+static int home_total_n;
+
 static bool app_visible(const char *id)
 {
     return strcmp(id, "terminal") != 0 || S.settings.developer;
@@ -143,8 +150,20 @@ static bool app_visible(const char *id)
 static bool app_enabled(const char *id)
 {
     if(strcmp(id, "meshcore") == 0) return LZ_MESHCORE_ENABLED;
-    if(strcmp(id, "appstore") == 0) return false;   /* not wired up yet */
     return true;
+}
+
+static void home_prepare(lz_local_app_t *local, int local_cap)
+{
+    home_builtin_n = 0;
+    for(int i = 0; i < 8; i++)
+        if(app_visible(LZ_APPS[i].id)) home_builtin_n++;
+
+    int slots = HOME_MAX_CELLS - home_builtin_n;
+    if(slots < 0) slots = 0;
+    if(slots > local_cap) slots = local_cap;
+    home_local_n = slots > 0 ? lz_svc_scan_apps(local, slots) : 0;
+    home_total_n = home_builtin_n + home_local_n;
 }
 
 static int home_app_index(int visible_idx)
@@ -158,11 +177,10 @@ static int home_app_index(int visible_idx)
     return -1;
 }
 
-static int home_visible_count(void)
+static int home_local_index(int visible_idx)
 {
-    int n = 0;
-    for(int i = 0; i < 8; i++) if(app_visible(LZ_APPS[i].id)) n++;
-    return n;
+    int idx = visible_idx - home_builtin_n;
+    return (idx >= 0 && idx < home_local_n) ? idx : -1;
 }
 
 static lz_view_t app_view(const char *id)
@@ -179,12 +197,25 @@ static lz_view_t app_view(const char *id)
 
 static void home_activate(int idx)
 {
+    int local_idx = home_local_index(idx);
+    if(local_idx >= 0) {
+        lz_local_app_t local[HOME_LOCAL_MAX];
+        int n = lz_svc_scan_apps(local, HOME_LOCAL_MAX);
+        if(local_idx < n) {
+            S.local_app_sel = local[local_idx];
+            lz_go(LZ_V_LOCALAPP);
+        }
+        return;
+    }
+
     int app_idx = home_app_index(idx);
-    if(app_idx >= 0 && app_enabled(LZ_APPS[app_idx].id)) lz_go(app_view(LZ_APPS[app_idx].id));
+    if(app_idx >= 0 && app_enabled(LZ_APPS[app_idx].id))
+        lz_go(app_view(LZ_APPS[app_idx].id));
 }
 
 static bool home_disabled(int idx)
 {
+    if(home_local_index(idx) >= 0) return false;
     int app_idx = home_app_index(idx);
     return app_idx >= 0 && !app_enabled(LZ_APPS[app_idx].id);
 }
@@ -192,16 +223,24 @@ static bool home_disabled(int idx)
 void lz_scr_home(lv_obj_t *root)
 {
     lz_status_bar(root);
+    lz_local_app_t local[HOME_LOCAL_MAX];
+    home_prepare(local, HOME_LOCAL_MAX);
 
-    int count = home_visible_count();
+    int count = home_total_n;
     if(S.focus >= count) S.focus = count > 0 ? count - 1 : 0;
 
     /* 4-column grid: padding 11px 12px, cell 71px + 4px gap, row gap 9 */
     for(int i = 0; i < count; i++) {
         int app_idx = home_app_index(i);
-        const lz_app_t *a = &LZ_APPS[app_idx];
+        int local_idx = home_local_index(i);
+        const lz_app_t *a = app_idx >= 0 ? &LZ_APPS[app_idx] : NULL;
+        const lz_local_app_t *la = local_idx >= 0 ? &local[local_idx] : NULL;
+        const char *id = a ? a->id : la->id;
+        const char *name = a ? a->name : la->name;
+        const char *icon = a ? a->icon : lz_app_icon_glyph(la->icon);
+        int hue = a ? a->hue : la->hue;
         bool foc = (i == S.focus);
-        bool en = app_enabled(a->id);
+        bool en = a ? app_enabled(a->id) : true;
         int col = i % 4, row = i / 4;
         /* center the 4x2 grid in the area below the status bar */
         int cell_x = 12 + col * 75;
@@ -214,22 +253,24 @@ void lz_scr_home(lv_obj_t *root)
         lv_obj_set_size(tile, 46, 46);
         lv_obj_set_pos(tile, cell_x + (71 - 46) / 2, cell_y);
         lv_obj_set_style_radius(tile, LZ_RADIUS_TILE, 0);
-        lv_obj_set_style_bg_color(tile, en ? lz_tile_color(a->hue) : lv_color_hex(0x23272E), 0);
+        lv_obj_set_style_bg_color(tile, en ? lz_tile_color(hue) : lv_color_hex(0x23272E), 0);
         lv_obj_set_style_bg_opa(tile, LV_OPA_COVER, 0);
         if(foc) {
             lv_obj_set_style_outline_width(tile, LZ_FOCUS_RING_W, 0);
             lv_obj_set_style_outline_color(tile, LZ_FOCUS, 0);
             lv_obj_set_style_outline_pad(tile, 1, 0);
         }
-        lv_obj_t *ic = lz_icon(tile, a->icon, &lz_icons_24,
+        lv_obj_t *ic = lz_icon(tile, icon, a ? &lz_icons_24 : &lz_icons_18,
                                en ? lv_color_white() : lv_color_hex(0x5A616A));
         lv_obj_center(ic);
 
-        lv_obj_t *lbl = lz_text(root, a->name, LZ_F_SMALL,
+        lv_obj_t *lbl = lz_text(root, name, LZ_F_SMALL,
                                 !en ? lv_color_hex(0x5A616A)
                                     : foc ? LZ_TEXT_BRIGHT : LZ_TEXT_DIMLBL);
-        lv_obj_update_layout(lbl);
-        lv_obj_set_pos(lbl, cell_x + (71 - lv_obj_get_width(lbl)) / 2, cell_y + 46 + 4);
+        lv_obj_set_width(lbl, 71);
+        lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
+        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_pos(lbl, cell_x, cell_y + 46 + 4);
 
         /* "SOON" badge: a small pill in the tile's top-right corner, clearly
          * separated from the glyph and the app-name label below */
@@ -247,7 +288,7 @@ void lz_scr_home(lv_obj_t *root)
 
         /* iPhone-style unread counter badge on the Messages icon (muted chats
          * excluded): 1-9 as the number, "9+" once there are ten or more */
-        if(strcmp(a->id, "messages") == 0) {
+        if(strcmp(id, "messages") == 0) {
             int u = lz_svc_unread_total();
             if(u > 0) {
                 lv_obj_t *bdg = lz_box(tile);

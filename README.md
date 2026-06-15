@@ -115,6 +115,9 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
 ### 🔭 Later
 - **MeshCore companion bridge** — let the companion app speak MeshCore too (Public + DMs are already on-device).
 - **Roll the iPhone look everywhere** — grouped cards / dividers across Messages, Nodes, Contacts.
+- **Local app platform** - scan local app manifests from `/sd/limitlezz/apps`,
+  `/sd/apps`, `/appfs/apps`, and simulator data dirs. Runtime execution,
+  permissions, downloads, updates, and real app launch are still TODO.
 - **Security**: optional device **password/PIN**, and **encrypt the data files**
   (messages, identity, keys) when a password is set.
 - **Hardening**: Wi-Fi passwords are stored in plaintext on the SD card
@@ -267,7 +270,8 @@ the demo mesh.
 - **Meshtastic / MeshCore managers** — per-network identity cards,
   Nodes/Channels and Contacts/Rooms tabs, SNR color coding, role badges,
   online dots.
-- **App Store** — featured card + install flow (GET → "…" → OPEN).
+- **App Store** - scans local app manifests and shows a manifest detail shell;
+  the static catalog remains a prototype (GET -> "..." -> OPEN).
 - **Contacts / detail** — unified directory with network dots; detail page
   with Message (jumps into the bound conversation) and spec table.
 - **Settings** — airtime scheduler bar that rebalances live when the

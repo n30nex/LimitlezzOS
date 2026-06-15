@@ -13,6 +13,19 @@
 
 extern uint32_t lz_tick_ms(void);
 
+static void sim_reset_dir(const char *path)
+{
+    char cmd[384];
+#ifdef _WIN32
+    snprintf(cmd, sizeof cmd, "if exist \"%s\" rmdir /s /q \"%s\"", path, path);
+    system(cmd);
+    snprintf(cmd, sizeof cmd, "mkdir \"%s\"", path);
+#else
+    snprintf(cmd, sizeof cmd, "rm -rf '%s' && mkdir -p '%s'", path, path);
+#endif
+    system(cmd);
+}
+
 /* ======================================================================== *
  *  Virtual peer roster
  * ======================================================================== */
@@ -668,7 +681,7 @@ int sim_scenario_run(void)
 
     /* clean slate: a wiped on-disk store (so tail counts are real and
      * persistence is exercised), no demo seed, both networks tuned in */
-    system("rm -rf lzdata_simtest && mkdir -p lzdata_simtest");
+    sim_reset_dir("lzdata_simtest");
     lz_svc_init("lzdata_simtest", false);
     lz_svc_set_time(1781274180);
     g_net_mt = true; g_net_mc = true;

@@ -17,9 +17,21 @@
  * everything RAM-only.
  */
 #include "mesh.h"
+#include <dirent.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+
+#if !defined(S_IFMT) && defined(_S_IFMT)
+#define S_IFMT _S_IFMT
+#endif
+#if !defined(S_IFDIR) && defined(_S_IFDIR)
+#define S_IFDIR _S_IFDIR
+#endif
+#ifndef S_ISDIR
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
 
 static char g_dir[96];
 static bool g_persist;
@@ -43,6 +55,203 @@ const char *lz_store_file_root(void)
 static void path_for(char *out, size_t n, const char *name)
 {
     snprintf(out, n, "%s/%s", g_dir, name);
+}
+
+static void path_join(char *out, size_t n, const char *base, const char *name)
+{
+    size_t bl = strlen(base);
+    snprintf(out, n, "%s%s%s", base, (bl && base[bl - 1] == '/') ? "" : "/", name);
+}
+
+static bool path_is_dir(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static bool path_is_file(const char *path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 && !S_ISDIR(st.st_mode);
+}
+
+/* ---- local app manifests ----
+ *
+ * First V0.95 app-platform increment: discover installable local app packages
+ * without a VM/runtime yet. Each package is:
+ *
+ *   apps/<id>/manifest.json
+ *   apps/<id>/<entry>
+ *
+ * The manifest parser intentionally accepts a tiny top-level JSON subset so it
+ * stays deterministic on ESP32: string fields plus integer hue, no allocation,
+ * no recursion, and bounded file size.
+ */
+
+static const char *skip_ws(const char *p)
+{
+    while(*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+    return p;
+}
+
+static const char *json_value_for(const char *json, const char *key)
+{
+    char needle[36];
+    snprintf(needle, sizeof needle, "\"%s\"", key);
+    const char *p = json;
+    size_t nl = strlen(needle);
+    while((p = strstr(p, needle)) != NULL) {
+        const char *q = skip_ws(p + nl);
+        if(*q == ':') return skip_ws(q + 1);
+        p = q;
+    }
+    return NULL;
+}
+
+static bool json_get_string(const char *json, const char *key, char *out, size_t n)
+{
+    if(!out || n == 0) return false;
+    const char *p = json_value_for(json, key);
+    if(!p || *p != '"') return false;
+    p++;
+    size_t j = 0;
+    while(*p && *p != '"') {
+        char c = *p++;
+        if(c == '\\' && *p) {
+            char e = *p++;
+            if(e == 'n') c = '\n';
+            else if(e == 'r') c = '\r';
+            else if(e == 't') c = '\t';
+            else c = e;
+        }
+        if(j + 1 < n && c >= 32) out[j++] = c;
+    }
+    if(*p != '"') return false;
+    out[j] = 0;
+    return j > 0;
+}
+
+static bool json_get_int(const char *json, const char *key, int *out)
+{
+    const char *p = json_value_for(json, key);
+    if(!p) return false;
+    char *end = NULL;
+    long v = strtol(p, &end, 10);
+    if(end == p) return false;
+    *out = (int)v;
+    return true;
+}
+
+static bool safe_id(const char *s)
+{
+    if(!s || !s[0]) return false;
+    for(int i = 0; s[i]; i++) {
+        char c = s[i];
+        bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                  (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
+        if(!ok) return false;
+    }
+    return true;
+}
+
+static bool safe_entry(const char *s)
+{
+    if(!s || !s[0] || s[0] == '/' || s[0] == '\\') return false;
+    if(strstr(s, "..")) return false;
+    for(int i = 0; s[i]; i++) {
+        char c = s[i];
+        if(c == '\\' || c == ':' || c < 32) return false;
+    }
+    return true;
+}
+
+static bool local_app_seen(const lz_local_app_t *out, int n, const char *id)
+{
+    for(int i = 0; i < n; i++)
+        if(strcmp(out[i].id, id) == 0) return true;
+    return false;
+}
+
+static bool load_app_manifest(const char *pkg_dir, lz_local_app_t *app)
+{
+    char manifest[136];
+    path_join(manifest, sizeof manifest, pkg_dir, "manifest.json");
+    FILE *f = fopen(manifest, "rb");
+    if(!f) return false;
+
+    char json[1537];
+    size_t n = fread(json, 1, sizeof json - 1, f);
+    fclose(f);
+    json[n] = 0;
+    if(n == 0 || n >= sizeof json - 1) return false;
+
+    memset(app, 0, sizeof *app);
+    app->hue = -1;
+    snprintf(app->version, sizeof app->version, "0.0.0");
+    snprintf(app->author, sizeof app->author, "local");
+    snprintf(app->icon, sizeof app->icon, "description");
+
+    if(!json_get_string(json, "id", app->id, sizeof app->id)) return false;
+    if(!json_get_string(json, "name", app->name, sizeof app->name)) return false;
+    if(!json_get_string(json, "entry", app->entry, sizeof app->entry)) return false;
+    json_get_string(json, "version", app->version, sizeof app->version);
+    json_get_string(json, "author", app->author, sizeof app->author);
+    if(!json_get_string(json, "summary", app->summary, sizeof app->summary))
+        json_get_string(json, "description", app->summary, sizeof app->summary);
+    json_get_string(json, "icon", app->icon, sizeof app->icon);
+    json_get_int(json, "hue", &app->hue);
+
+    if(!safe_id(app->id) || !safe_entry(app->entry)) return false;
+    if(app->hue < -1 || app->hue > 359) app->hue = -1;
+
+    char entry_path[160];
+    path_join(entry_path, sizeof entry_path, pkg_dir, app->entry);
+    if(!path_is_file(entry_path)) return false;
+
+    snprintf(app->path, sizeof app->path, "%s", pkg_dir);
+    return true;
+}
+
+static void scan_app_root(const char *apps_dir, lz_local_app_t *out, int cap, int *count)
+{
+    if(!apps_dir || !out || !count || *count >= cap) return;
+    DIR *d = opendir(apps_dir);
+    if(!d) return;
+
+    struct dirent *e;
+    while(*count < cap && (e = readdir(d)) != NULL) {
+        if(strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+        char pkg[128];
+        path_join(pkg, sizeof pkg, apps_dir, e->d_name);
+        if(!path_is_dir(pkg)) continue;
+
+        lz_local_app_t app;
+        if(!load_app_manifest(pkg, &app)) continue;
+        if(local_app_seen(out, *count, app.id)) continue;
+        out[(*count)++] = app;
+    }
+    closedir(d);
+}
+
+int lz_store_scan_apps(lz_local_app_t *out, int cap)
+{
+    if(!g_persist || !out || cap <= 0) return 0;
+    int count = 0;
+
+    char dir[128];
+    path_join(dir, sizeof dir, g_dir, "apps");
+    scan_app_root(dir, out, cap, &count);
+
+    const char *root = lz_store_file_root();
+    if(root && strcmp(root, g_dir) != 0 && count < cap) {
+        path_join(dir, sizeof dir, root, "apps");
+        scan_app_root(dir, out, cap, &count);
+    }
+
+    if(count < cap)
+        scan_app_root("/appfs/apps", out, cap, &count);
+
+    return count;
 }
 
 /* addr strings can contain '!' etc — keep alnum only in filenames */

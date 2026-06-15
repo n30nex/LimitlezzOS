@@ -50,6 +50,50 @@ static SDL_Texture *tex;
 
 uint32_t lz_tick_ms(void) { return SDL_GetTicks(); }
 
+static void sim_reset_dir(const char *path)
+{
+    char cmd[384];
+#ifdef _WIN32
+    snprintf(cmd, sizeof cmd, "if exist \"%s\" rmdir /s /q \"%s\"", path, path);
+    system(cmd);
+    snprintf(cmd, sizeof cmd, "mkdir \"%s\"", path);
+#else
+    snprintf(cmd, sizeof cmd, "rm -rf '%s' && mkdir -p '%s'", path, path);
+#endif
+    system(cmd);
+}
+
+static void sim_mkdirs(const char *path)
+{
+    char cmd[256];
+#ifdef _WIN32
+    snprintf(cmd, sizeof cmd, "if not exist \"%s\" mkdir \"%s\"", path, path);
+#else
+    snprintf(cmd, sizeof cmd, "mkdir -p '%s'", path);
+#endif
+    system(cmd);
+}
+
+static void sim_seed_local_app(const char *datadir)
+{
+    char dir[160], path[192];
+    snprintf(dir, sizeof dir, "%s/apps/weather", datadir);
+    sim_mkdirs(dir);
+
+    snprintf(path, sizeof path, "%s/manifest.json", dir);
+    FILE *mf = fopen(path, "wb");
+    if(mf) {
+        fputs("{\"id\":\"weather.mesh\",\"name\":\"Weather Mesh\",\"version\":\"0.1.0\","
+              "\"author\":\"Limitless\",\"entry\":\"main.lua\",\"icon\":\"weather\","
+              "\"hue\":48,\"summary\":\"Local weather dashboard\"}", mf);
+        fclose(mf);
+    }
+
+    snprintf(path, sizeof path, "%s/main.lua", dir);
+    FILE *entry = fopen(path, "wb");
+    if(entry) { fputs("return true\n", entry); fclose(entry); }
+}
+
 static bool g_headless;
 /* incoming radio data → rebuild the current screen (live and headless alike);
  * lz_rebuild pins an open conversation to the newest message */
@@ -145,6 +189,8 @@ static void tap_at(int x, int y)
 
 static void shots(const char *dir)
 {
+    sim_mkdirs(dir);
+
     static const struct { lz_view_t v; const char *name; } SHOTS[] = {
         { LZ_V_LOCK, "01-lock" },           { LZ_V_HOME, "02-home" },
         { LZ_V_MESSAGES, "03-messages" },   { LZ_V_CONVO, "04-conversation" },
@@ -201,6 +247,20 @@ static void shots(const char *dir)
         printf("wrote %s\n", path);
     }
 
+    {
+        lz_local_app_t local[1];
+        if(lz_svc_scan_apps(local, 1) > 0) {
+            S.local_app_sel = local[0];
+            S.view = LZ_V_LOCALAPP;
+            S.focus = 0;
+            lz_rebuild();
+            pump(60);
+            snprintf(path, sizeof path, "%s/07b-local-app.bmp", dir);
+            write_bmp(path);
+            printf("wrote %s\n", path);
+        }
+    }
+
     /* behavior scenarios, driven through the real key path */
 
     /* toggle MeshCore off in Settings -> airtime rebalances to 100% */
@@ -243,7 +303,9 @@ static void shots(const char *dir)
     write_bmp(path); printf("wrote %s\n", path);
 
     /* App Store install: GET -> "..." -> OPEN */
-    S.view = LZ_V_APPSTORE; S.focus = 0; lz_rebuild();
+    { lz_local_app_t local[LZ_MAX_LOCAL_APPS];
+      S.focus = lz_svc_scan_apps(local, LZ_MAX_LOCAL_APPS); }
+    S.view = LZ_V_APPSTORE; lz_rebuild();
     lz_ui_key(LZ_K_ENTER, 0);
     pump(60);
     snprintf(path, sizeof path, "%s/19-store-installing.bmp", dir);
@@ -499,7 +561,38 @@ static int codec_selftest(void)
         lz_store_init(NULL);              /* back to RAM-only */
     }
 
-    /* 9. MeshCore Public-channel GRP_TXT: decode a known reference vector,
+    /* 9. local app scanner: valid manifests become local apps; broken packages
+     *    are ignored before they can reach Home/App Store. */
+    {
+        extern void lz_store_init(const char *datadir);
+        extern int  lz_store_scan_apps(lz_local_app_t *out, int cap);
+        sim_reset_dir("lzdata_appscan");
+        sim_mkdirs("lzdata_appscan/apps/weather");
+        sim_mkdirs("lzdata_appscan/apps/bad");
+        FILE *mf = fopen("lzdata_appscan/apps/weather/manifest.json", "wb");
+        if(mf) {
+            fputs("{\"id\":\"weather.mesh\",\"name\":\"Weather Mesh\",\"version\":\"0.1.0\","
+                  "\"author\":\"Limitless\",\"entry\":\"main.lua\",\"icon\":\"weather\","
+                  "\"hue\":48,\"summary\":\"Local weather dashboard\"}", mf);
+            fclose(mf);
+        }
+        FILE *entry = fopen("lzdata_appscan/apps/weather/main.lua", "wb");
+        if(entry) { fputs("return true\n", entry); fclose(entry); }
+        FILE *bad = fopen("lzdata_appscan/apps/bad/manifest.json", "wb");
+        if(bad) { fputs("{\"id\":\"../bad\",\"name\":\"Bad\",\"entry\":\"missing.lua\"}", bad); fclose(bad); }
+
+        lz_store_init("lzdata_appscan");
+        lz_local_app_t apps[4];
+        int an = lz_store_scan_apps(apps, 4);
+        CHECK(an == 1, "local app scanner loads one valid manifest");
+        CHECK(an == 1 && strcmp(apps[0].id, "weather.mesh") == 0, "local app scanner keeps manifest id");
+        CHECK(an == 1 && strcmp(apps[0].entry, "main.lua") == 0, "local app scanner keeps safe entry");
+        CHECK(an == 1 && apps[0].hue == 48, "local app scanner keeps tile hue");
+        lz_store_init(NULL);
+        sim_reset_dir("lzdata_appscan");
+    }
+
+    /* 10. MeshCore Public-channel GRP_TXT: decode a known reference vector,
      *    reject a wrong key (MAC), and round-trip an encode. Vector generated
      *    against the documented scheme (AES-128-ECB + HMAC-SHA256 trunc-2). */
     {
@@ -533,7 +626,7 @@ static int codec_selftest(void)
               strcmp(rm.text, "hi there") == 0, "MeshCore GRP_TXT round-trip fields");
     }
 
-    /* 10. MeshCore DM (TXT_MSG): ECDH derive (vs orlp/standard reference) then a
+    /* 11. MeshCore DM (TXT_MSG): ECDH derive (vs orlp/standard reference) then a
      *     full encode->parse->decode round-trip + ACK match + MAC tamper check. */
     {
         uint8_t seedA[32], pubA[32], pubB[32], ref[32];
@@ -613,7 +706,8 @@ int main(int argc, char **argv)
     const char *datadir = "lzdata";
     if(headless) {
         datadir = "lzdata_shots";
-        system("rm -rf lzdata_shots && mkdir -p lzdata_shots");
+        sim_reset_dir("lzdata_shots");
+        sim_seed_local_app(datadir);
     }
     lz_svc_init(datadir, true);
     lz_svc_set_time(1781274180);   /* sim: pretend NTP synced so the clock shows */

@@ -73,7 +73,7 @@ Status labels:
 | --- | --- | --- | --- |
 | First-boot onboarding | Functional | `scr_onboard.c`, identity persistence | MeshCore network row is visible but locked. |
 | Lock screen | Functional | clock, battery, network icons, notification card | Add per-network badges once MeshCore is active. |
-| Home launcher | Partial | filtered app grid, Developer Mode hides Terminal by default, Messages unread counter badge | V0.95: support added apps and multiple Home screens; run hardware visual regression for badge layout. |
+| Home launcher | Partial | filtered app grid, Developer Mode hides Terminal by default, Messages unread counter badge, scanned local apps fill spare Home slots | V0.95: add multiple Home screens and full app launch/runtime integration; run hardware visual regression for badge layout. |
 | Unified inbox | Functional/Partial | Messages tabs, filters, unread highlighting, per-thread badges, mute indicator, channel tab | MeshCore filter is gated; finish hardware responsiveness pass. |
 | Conversation view | Functional/Partial | compose, in-place draft text refresh, scroll-preserving chat rebuilds, bubbles, status colors, resend long-press, persisted sent-DM delivery metadata | Stock-device ACK/retry interop and hardware chat-log latency still need validation. |
 | Meshtastic manager | Functional/Partial | identity card, virtualized node list, channels tab, separate USB and BLE companion toggles | Emergency channel row is disabled; BLE companion needs phone hardware validation. |
@@ -82,7 +82,7 @@ Status labels:
 | Settings | Functional/Partial | network toggles, Wi-Fi, in-place brightness slider updates, time, system, touch calibration, Developer Mode, `settings.cfg` persistence | Add migration/versioning if the settings schema grows; hardware latency pass still needed. |
 | Wi-Fi setup | Functional, needs validation | async scan/connect, saved SSID/password, auto-connect | Credentials are plaintext on SD; only one saved network. |
 | System/battery page | Functional/Partial | live stats and battery arc | Hardware values need calibration/validation. |
-| App Store | Prototype | `LZ_STORE` static catalog and timer-based GET -> OPEN | Disabled from Home; no catalog, download, install, manifest, or launch. |
+| App Store | Prototype/Partial | `LZ_STORE` static catalog remains; local manifests from SD/appfs are scanned, listed as installed local apps, and open a manifest detail shell | Network catalog, download, install/update, permissions, runtime execution, and launch lifecycle are still missing. |
 | Terminal | Functional/Partial | interactive UI terminal behind Developer Mode; serial CLI always available over USB | Expand diagnostics once Developer Mode grows into a full power-user surface. |
 | Files | Functional/Partial | read-only bounded filesystem browser rooted at mounted SD/local store | Add appfs mount support and gated file actions later. |
 
@@ -91,9 +91,9 @@ Status labels:
 | Feature | Status | Evidence | Gap / Next Action |
 | --- | --- | --- | --- |
 | Lua sandbox | Planned | Design spec section 9 | Choose Lua/eLua/minimal interpreter after memory profiling. |
-| App manifest | Planned | Design spec manifest schema | Define stable manifest format and validator. |
+| App manifest | Partial | `docs/tdeck-local-app-manifest.md`; bounded manifest parser requires `id`, `name`, and relative `entry`, with optional version/author/summary/icon/hue | Extend once the runtime and permission model are chosen. |
 | App permissions | Planned | Design spec API namespaces | Implement least-privilege API injection. |
-| Local app scanner | Planned | `appfs` partition and design spec | V0.95: first useful App SDK milestone is scanning `/apps` on SD/appfs. |
+| Local app scanner | Partial | `lz_store_scan_apps` scans `/sd/limitlezz/apps`, `/sd/apps`, `/appfs/apps`, and simulator `<datadir>/apps`; simulator selftest covers a valid app and a rejected unsafe package | Add runtime execution, app lifecycle, data quotas, appfs mount validation, and multi-page Home once memory profiling picks a runtime. |
 | Network app catalog | Planned | Wi-Fi service notes; design spec | Fetch `index.json`, verify TLS/metadata, cache results. |
 | App download/install/update | Planned | App Store prototype only | SHA256 verify, extract, version updates, rollback failed installs. |
 | Optional map app | Planned | Store data includes maps; maintainer notes prefer maps as optional | Keep maps out of the base firmware. |

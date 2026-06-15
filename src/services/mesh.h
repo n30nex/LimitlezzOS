@@ -26,6 +26,7 @@ extern "C" {
 #define LZ_MAX_THREADS  48
 #define LZ_TAIL_MAX     32
 #define LZ_TEXT_MAX     200
+#define LZ_MAX_LOCAL_APPS 12
 
 /* MeshCore (2nd RF profile, TDM with Meshtastic) is built but not receive-ready,
  * so it's shown as "Coming soon" / grayed for the Alpha. Default off; a dev/sim
@@ -123,11 +124,24 @@ typedef struct {
     uint32_t sent_ms;            /* lz_tick_ms() at send, for ack timeout */
 } lz_msg_rt;
 
+typedef struct {
+    char id[24];                 /* manifest id, safe filename token */
+    char name[32];
+    char version[16];
+    char author[28];
+    char summary[72];
+    char entry[48];              /* relative script entrypoint */
+    char icon[20];               /* symbolic icon token, mapped by UI */
+    char path[112];              /* package directory */
+    int  hue;                    /* tile hue, -1 = neutral */
+} lz_local_app_t;
+
 /* ---- lifecycle ---- */
 void lz_svc_init(const char *datadir, bool seed_demo);  /* datadir NULL = RAM only */
 void lz_svc_loop(void);                                 /* pump backend + timers   */
 void lz_svc_set_dirty_cb(void (*cb)(void));             /* UI refresh request      */
 const char *lz_svc_file_root(void);                     /* read-only Files browser root */
+int  lz_svc_scan_apps(lz_local_app_t *out, int cap);    /* SD/appfs local manifests */
 
 /* ---- nodes ---- */
 int  lz_svc_nodes(const lz_node_rt **out);              /* all heard nodes */
