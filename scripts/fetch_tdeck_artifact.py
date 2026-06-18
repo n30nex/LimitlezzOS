@@ -36,7 +36,36 @@ def current_commit(project_dir: Path) -> str:
     return git(project_dir, "rev-parse", "HEAD")
 
 
+def repo_from_remote_url(url: str) -> str | None:
+    raw = url.strip()
+    if raw.startswith("git@github.com:"):
+        raw = raw.removeprefix("git@github.com:")
+    elif raw.startswith("https://github.com/"):
+        raw = raw.removeprefix("https://github.com/")
+    elif raw.startswith("http://github.com/"):
+        raw = raw.removeprefix("http://github.com/")
+    else:
+        return None
+    raw = raw.removesuffix(".git").strip("/")
+    parts = raw.split("/")
+    if len(parts) >= 2 and parts[0] and parts[1]:
+        return f"{parts[0]}/{parts[1]}"
+    return None
+
+
+def tracking_repo(project_dir: Path) -> str | None:
+    try:
+        upstream = git(project_dir, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+        remote = upstream.split("/", 1)[0]
+        return repo_from_remote_url(git(project_dir, "remote", "get-url", remote))
+    except SystemExit:
+        return None
+
+
 def default_repo(project_dir: Path) -> str:
+    repo = tracking_repo(project_dir)
+    if repo:
+        return repo
     try:
         data = json.loads(run_text(["gh", "repo", "view", "--json", "nameWithOwner"], project_dir))
         repo = data.get("nameWithOwner")
@@ -114,16 +143,22 @@ def bundle_dir(out_dir: Path) -> Path:
     raise SystemExit(f"Multiple possible artifact bundle directories found:\n{choices}")
 
 
+def artifact_prefix(env_name: str) -> str:
+    return "tdeck-meshcore-firmware" if env_name == "tdeck-meshcore" else "tdeck-firmware"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Download the current branch T-Deck firmware artifact.")
     parser.add_argument("--project-dir", default=Path(__file__).resolve().parents[1])
     parser.add_argument("--repo", help="GitHub repo to read Actions artifacts from, e.g. ItsLimitlezz/LimitlezzOS.")
     parser.add_argument("--workflow", default="Firmware CI")
+    parser.add_argument("--env", choices=["tdeck", "tdeck-meshcore"], default="tdeck",
+                        help="Firmware artifact flavor to download.")
     parser.add_argument("--branch", help="Branch name. Defaults to the current git branch.")
     parser.add_argument("--commit", help="Commit SHA. Defaults to HEAD.")
     parser.add_argument("--run-id", type=int, help="Download a specific run instead of searching.")
     parser.add_argument("--artifact-name", help="Artifact name. Defaults to tdeck-firmware-<sha>.")
-    parser.add_argument("--out", default=Path(".pio") / "ci-artifacts" / "tdeck")
+    parser.add_argument("--out", help="Output directory. Defaults to .pio/ci-artifacts/<env>.")
     parser.add_argument("--allow-latest-success", action="store_true", help="Allow newest successful run if HEAD has none.")
     args = parser.parse_args()
 
@@ -131,7 +166,8 @@ def main() -> int:
     repo = args.repo or default_repo(project_dir)
     branch = args.branch or current_branch(project_dir)
     commit = args.commit or current_commit(project_dir)
-    out_dir = (project_dir / args.out).resolve() if not Path(args.out).is_absolute() else Path(args.out)
+    out_arg = Path(args.out) if args.out else Path(".pio") / "ci-artifacts" / args.env
+    out_dir = (project_dir / out_arg).resolve() if not out_arg.is_absolute() else out_arg
 
     if args.run_id is not None:
         run_id = args.run_id
@@ -144,18 +180,19 @@ def main() -> int:
         artifact_sha = chosen["headSha"]
         run_url = chosen["url"]
 
-    artifact_name = args.artifact_name or f"tdeck-firmware-{artifact_sha}"
+    prefix = artifact_prefix(args.env)
+    artifact_name = args.artifact_name or f"{prefix}-{artifact_sha}"
     if args.artifact_name is None:
         artifacts = load_artifacts(project_dir, repo, run_id)
         names = [a.get("name", "") for a in artifacts]
         if artifact_name not in names:
-            tdeck_names = [name for name in names if name.startswith("tdeck-firmware-")]
-            if len(tdeck_names) == 1:
+            matching_names = [name for name in names if name.startswith(f"{prefix}-")]
+            if len(matching_names) == 1:
                 print(
-                    f"[artifact] expected {artifact_name}, using run artifact {tdeck_names[0]}",
+                    f"[artifact] expected {artifact_name}, using run artifact {matching_names[0]}",
                     file=sys.stderr,
                 )
-                artifact_name = tdeck_names[0]
+                artifact_name = matching_names[0]
             else:
                 available = "\n".join(f"  {name}" for name in names)
                 raise SystemExit(
@@ -185,7 +222,7 @@ def main() -> int:
     print(f"[artifact] name: {artifact_name}")
     print(f"[artifact] dir: {bundle}")
     print("[artifact] flash:")
-    print(f"  python scripts/tdeck_smoke.py --port COM8 --no-stub-upload --skip-build --artifact-dir {bundle}")
+    print(f"  python scripts/tdeck_smoke.py --port COM8 --env {args.env} --no-stub-upload --skip-build --artifact-dir {bundle}")
     return 0
 
 

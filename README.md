@@ -257,10 +257,16 @@ downloads the matching successful `Firmware CI` artifact with `gh`. It refuses
 to use an older run unless `--allow-latest-success` is passed.
 
 For Phase 3 split-airtime checks on a MeshCore-enabled build, run the dedicated
-serial TDM probe after flashing:
+serial TDM probe after flashing. The default `tdeck` firmware stays conservative;
+CI also uploads an opt-in `tdeck-meshcore` flash bundle for this validation path:
 
 ```sh
+python scripts/fetch_tdeck_artifact.py --env tdeck-meshcore
+python scripts/tdeck_smoke.py --port COM8 --env tdeck-meshcore --no-stub-upload --skip-build --artifact-dir .pio/ci-artifacts/tdeck-meshcore
 python scripts/tdm_airtime_smoke.py --port COM8
+
+python scripts/fetch_tdeck_artifact.py --env tdeck-meshcore
+python scripts/tdeck_smoke.py --port /dev/ttyACM0 --env tdeck-meshcore --no-stub-upload --skip-build --artifact-dir .pio/ci-artifacts/tdeck-meshcore
 python scripts/tdm_airtime_smoke.py --port /dev/ttyACM0
 ```
 
