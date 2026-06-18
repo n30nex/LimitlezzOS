@@ -32,12 +32,12 @@ The firmware is complete when:
 
 These maintainer-provided beta labels are the canonical near-term sequence. The broader phases below preserve that order, then add post-V0.96 completion work for OTA, the full App Store, security, feedback, emergency, and release hardening.
 
-**Current release: Beta 0.6.** MeshCore public chat (V0.6) and encrypted DMs (V0.7) are implemented and hardware-verified against a live mesh. **Two open items:** (1) split airtime (the Meshtastic↔MeshCore TDM scheduler) may not be working reliably and needs re-verification; (2) V0.5 BLE companion advertises/serves GATT and the official app connects, but the session drops immediately (connect-then-disconnect). Also delivered this cycle (outside the milestone list): a desktop SDL2 simulator with a 50+ assertion codec/scenario self-test harness, and Wi-Fi/BLE mutual exclusion (they share scarce internal DMA RAM on the ESP32-S3, so only one is resident at a time).
+**Current release: Beta 0.6.** MeshCore public chat (V0.6) and encrypted DMs (V0.7) are implemented and hardware-verified against a live mesh. **Two open items:** (1) split airtime (the Meshtastic/MeshCore TDM scheduler) has a 2026-06-18 COM8 serial dwell/switch smoke pass on the opt-in MeshCore image, but still needs packet-loss, latency, and real dual-network traffic soak; (2) V0.5 BLE companion advertises/serves GATT and the official app connects, but the session drops immediately (connect-then-disconnect). Also delivered this cycle (outside the milestone list): a desktop SDL2 simulator with a 50+ assertion codec/scenario self-test harness, and Wi-Fi/BLE mutual exclusion (they share scarce internal DMA RAM on the ESP32-S3, so only one is resident at a time).
 
 | Version | Milestone | Status |
 | --- | --- | --- |
 | V0.5 | BLE companion for Meshtastic | 🚧 Firmware done — advertises + GATT (ToRadio/FromRadio/FromNum) works on hardware; **connect-then-disconnect** with the official app is open |
-| V0.6 | MeshCore public chat and split airtime config | 🚧 Public chat send/receive hardware-verified; **split airtime may not be working — needs re-verification**; config UI still TODO |
+| V0.6 | MeshCore public chat and split airtime config | In progress - public chat send/receive hardware-verified; split-airtime serial dwell/switch smoke passed on COM8; packet-loss, latency, and real dual-network traffic soak still open |
 | V0.7 | MeshCore DMs and private chats | ✅ Encrypted DMs (X25519 ECDH + AES) send/receive hardware-verified against a real MeshCore peer |
 | V0.8 | MeshCore USB companion and MeshCore BLE companion | ⬜ Not started |
 | V0.9 | Code review, optimization, and emoji polish | ⬜ Not started |
@@ -125,7 +125,7 @@ Exit criteria:
 
 Goal: make MeshCore visible in the real product through public chat first, while giving users a simple way to understand and control split airtime.
 
-**Status (Beta 0.6): mostly done — split airtime suspect.** MeshCore ADVERT interop, public/default channel receive, group/room text, the send path through `lz_svc_send_text`, unified-inbox wiring, the public-chat network toggle, and dual-network unread badges all work on a live mesh. **Open:** the split-airtime TDM scheduler (time-sharing the one SX1262 between Meshtastic and MeshCore) **may not be working reliably and needs re-verification** — earlier hardware checks looked OK but the behavior is now in question. Also remaining: a user-facing split-airtime *config UI* (currently a fixed 60/40 split toward Meshtastic).
+**Status (Beta 0.6): mostly done - split airtime serial smoke passed, soak still open.** MeshCore ADVERT interop, public/default channel receive, group/room text, the send path through `lz_svc_send_text`, unified-inbox wiring, the public-chat network toggle, and dual-network unread badges all work on a live mesh. The 2026-06-18 COM8 run on the opt-in `tdeck-meshcore` artifact proved the 60/40, 50/50, and 40/60 dwell reports, switch-count motion, and restore to `Meshtastic 100%`. **Open:** packet-loss, latency, and real simultaneous Meshtastic/MeshCore traffic impact are not yet soaked.
 
 Deliverables:
 
@@ -134,7 +134,7 @@ Deliverables:
   - missed-packet rate
   - Meshtastic delivery impact while MeshCore is enabled
   - MeshCore delivery impact while Meshtastic is enabled
-  - repeatable serial smoke for dwell presets and switch-count motion. Implemented as `scripts/tdm_airtime_smoke.py` plus an opt-in `tdeck-meshcore` CI artifact; it runs on Windows `COM8` or Linux/macOS serial paths, checks the 60/40, 50/50, and 40/60 dwell reports, verifies `switches:` advances between `rf` samples, and fails clearly if MeshCore is still compile-gated.
+  - repeatable serial smoke for dwell presets and switch-count motion. Implemented as `scripts/tdm_airtime_smoke.py` plus an opt-in `tdeck-meshcore` CI artifact; it runs on Windows `COM8` or Linux/macOS serial paths, checks the 60/40, 50/50, and 40/60 dwell reports, verifies `switches:` advances between `rf` samples, and fails clearly if MeshCore is still compile-gated. Passed on COM8 on 2026-06-18 against the opt-in MeshCore artifact; soak metrics above remain open.
 - Confirm target MeshCore RF profiles by region and define how they coexist with the LongFast-only product goal.
 - Build the split airtime config UI around simple choices, not raw radio parameters. Implemented: Settings now exposes Meshtastic first, Balanced, and MeshCore first presets, persists the choice, and reports the active dwell split through serial diagnostics.
 - Finish MeshCore packet handling:

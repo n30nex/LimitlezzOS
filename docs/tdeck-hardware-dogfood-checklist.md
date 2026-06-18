@@ -51,6 +51,20 @@ dogfood belong to the later roadmap phases.
 
 ## Hardware Evidence Log
 
+### 2026-06-18 COM8 MeshCore TDM Smoke
+
+- Firmware flashed: opt-in `tdeck-meshcore` GitHub Actions artifact from `n30nex/LimitlezzOS` run `27728176574`, commit `1552fa8`.
+- Artifact manifest recorded `meshcore_enabled=1`, `budget_status=pass`, `firmware_bytes=1536832`, and `static_ram_bytes=274676`.
+- Port boundary: only `COM8` was opened/flashed/probed during this validation.
+- Direct ROM flashing with `python scripts/tdeck_smoke.py --port COM8 --env tdeck-meshcore --no-stub-upload --skip-build --artifact-dir .pio/ci-artifacts/tdeck-meshcore --upload-baud 460800` succeeded; bootloader, partitions, `boot_app0.bin`, and firmware hashes all verified.
+- Split-airtime smoke passed with `python scripts/tdm_airtime_smoke.py --port COM8 --open-timeout 60 --boot-timeout 60 --timeout 30`.
+- TDM evidence: `airtime mt` reported 60/40 with 300/200 ms dwell and `switches: 2`; `airtime balanced` reported 50/50 with 250/250 ms dwell and `switches: 3`; `airtime mc` reported 40/60 with 200/300 ms dwell and `switches: 4`.
+- Switch motion evidence: after returning to balanced mode, `rf` advanced from `switches: 5` to `switches: 10` during the settle window and the active side flipped from MeshCore to Meshtastic.
+- Restore evidence: `net mc off` returned `rf` to `mode: Meshtastic 100%` with no additional switch-count growth.
+- Follow-up serial smoke passed with `python scripts/tdeck_smoke.py --skip-upload --port COM8 --env tdeck-meshcore --open-timeout 60 --boot-timeout 60 --timeout 30`.
+- Serial smoke evidence: identity `!a20d1428` / `limitlessdeck`, battery 100% on USB, `net` reported Meshtastic on and MeshCore off after restore, `rf` reported `mode: Meshtastic 100%`, `stats` reported radio TX/RX counters, Wi-Fi reported `cred=nvs`, and `companion test` reported `63 frames ... -> PASS`.
+- Remaining gap: this proves the opt-in MeshCore TDM image reports correct dwell presets and live switch motion on COM8; it does not yet prove packet loss, latency, or real simultaneous Meshtastic/MeshCore traffic impact.
+
 ### 2026-06-14 COM8 Smoke Attempt
 
 - Branch/commit flashed: `codex/tdeck-firmware-audit-roadmap` at `d5f69e0`.
