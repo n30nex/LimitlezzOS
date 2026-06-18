@@ -79,6 +79,12 @@ static void sim_write_bytes(const char *path, int bytes)
     fclose(f);
 }
 
+static void sim_fwrite_repeat(FILE *f, char c, int bytes)
+{
+    if(!f) return;
+    for(int i = 0; i < bytes; i++) fputc(c, f);
+}
+
 static void sim_write_local_app(const char *datadir, const char *slug,
                                 const char *id, const char *name,
                                 const char *entry_name, const char *icon,
@@ -803,6 +809,10 @@ static int codec_selftest(void)
               "local app foreground session keeps scoped storage");
         CHECK(run_ok && run.action_count == 1 && strcmp(run.actions[0].label, "Refresh") == 0,
               "local app foreground session exposes bounded action");
+        CHECK(run_ok && run.runtime_used_bytes > 0 &&
+              run.runtime_used_bytes <= run.runtime_budget_bytes &&
+              run.runtime_budget_bytes == LZ_LOCAL_APP_RUNTIME_BUDGET_BYTES,
+              "local app foreground session reports runtime memory budget");
         bool action_ok = run_ok && lz_store_local_app_action(&run, 0);
         CHECK(action_ok && run.action_last == 1 &&
               strcmp(run.status, "Forecast refreshed #1") == 0 &&
@@ -913,6 +923,50 @@ static int codec_selftest(void)
         CHECK(!badeffect_ok && badeffect &&
               strcmp(badeffect_run.error, "unsupported action effect") == 0,
               "local app foreground rejects unsupported action effects");
+        sim_mkdirs("lzdata_appscan/apps/fatmeta");
+        FILE *fmm = fopen("lzdata_appscan/apps/fatmeta/manifest.json", "wb");
+        if(fmm) {
+            fputs("{\"id\":\"fatmeta.local\",\"name\":\"Fat Metadata\",\"entry\":\"main.lua\","
+                  "\"permissions\":[\"display\",\"input\",\"storage\"]}", fmm);
+            fclose(fmm);
+        }
+        FILE *fme = fopen("lzdata_appscan/apps/fatmeta/main.lua", "wb");
+        if(fme) {
+            fputs("-- title: Fat Metadata\n-- status: ", fme);
+            sim_fwrite_repeat(fme, 's', 63);
+            fputs("\n-- body: ", fme);
+            sim_fwrite_repeat(fme, 'b', 95);
+            fputs("\n-- body: ", fme);
+            sim_fwrite_repeat(fme, 'c', 95);
+            fputs("\n-- body: ", fme);
+            sim_fwrite_repeat(fme, 'd', 95);
+            fputs("\n-- action: ", fme);
+            sim_fwrite_repeat(fme, 'l', 23);
+            fputs(" | ", fme);
+            sim_fwrite_repeat(fme, 'a', 47);
+            fputs(" | ", fme);
+            sim_fwrite_repeat(fme, 'c', 10);
+            fputs(" | counter:abcdefghijklmnopqrs\n-- action: ", fme);
+            sim_fwrite_repeat(fme, 'm', 23);
+            fputs(" | ", fme);
+            sim_fwrite_repeat(fme, 'd', 47);
+            fputs(" | ", fme);
+            sim_fwrite_repeat(fme, 'e', 10);
+            fputs(" | counter:tsrqponmlkjihgfedcb\n", fme);
+            fclose(fme);
+        }
+        lz_local_app_t budget_apps[LZ_MAX_LOCAL_APPS];
+        int budgetn = lz_store_scan_apps(budget_apps, LZ_MAX_LOCAL_APPS);
+        lz_local_app_t *fatmeta = NULL;
+        for(int i = 0; i < budgetn; i++)
+            if(strcmp(budget_apps[i].id, "fatmeta.local") == 0) fatmeta = &budget_apps[i];
+        lz_local_app_session_t fatmeta_run;
+        bool fatmeta_ok = fatmeta && lz_store_start_local_app(fatmeta, &fatmeta_run);
+        CHECK(!fatmeta_ok && fatmeta &&
+              strcmp(fatmeta_run.error, "runtime memory cap exceeded") == 0,
+              "local app foreground session blocks runtime metadata over budget");
+        CHECK(fatmeta && fatmeta_run.runtime_used_bytes > fatmeta_run.runtime_budget_bytes,
+              "local app runtime budget records overage");
         sim_mkdirs("lzdata_appscan/apps/huge");
         FILE *hm = fopen("lzdata_appscan/apps/huge/manifest.json", "wb");
         if(hm) {

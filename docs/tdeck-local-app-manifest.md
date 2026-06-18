@@ -48,12 +48,15 @@ Each package directory must contain:
   exist
 
 The current SDK 0.1 foreground shell reads bounded display metadata and up to
-two bounded foreground actions from the entry file. The entry metadata budget is
+two bounded foreground actions from the entry file. The entry source budget is
 1 KB; larger entry files are shown as launch-blocked instead of being
-truncated. It accepts optional `title:`, `status:`, `body:`, `text:`, and
-`action:` lines, including Lua-comment style lines such as `-- body: Local
-dashboard`. Script execution and richer API injection are still later runtime
-work.
+truncated. The loaded entry source plus parsed foreground metadata are also
+charged against a 704-byte runtime budget covering the resident title, status,
+body, action labels, action text, effects, and storage path. Apps that exceed
+either budget are launch-blocked before future runtime code can run. It accepts
+optional `title:`, `status:`, `body:`, `text:`, and `action:` lines, including
+Lua-comment style lines such as `-- body: Local dashboard`. Script execution
+and richer API injection are still later runtime work.
 
 Action lines use pipe-separated fields:
 
@@ -147,6 +150,7 @@ The scanner rejects packages when:
   missing on disk
 - `api_version` names an unsupported SDK version
 - `permissions` is not an array of supported namespace strings
+- the foreground entry exceeds the source budget or parsed runtime memory budget
 
 The current firmware scans local app manifests and can open them in a safe
 foreground shell with bounded foreground actions, including a storage-scoped

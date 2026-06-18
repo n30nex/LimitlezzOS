@@ -30,6 +30,7 @@ extern "C" {
 #define LZ_MAX_LOCAL_APP_ISSUES 8
 #define LZ_LOCAL_APP_BODY_MAX 360
 #define LZ_LOCAL_APP_ENTRY_MAX 1024u
+#define LZ_LOCAL_APP_RUNTIME_BUDGET_BYTES 704u
 #define LZ_LOCAL_APP_DATA_QUOTA_BYTES (64u * 1024u)
 #define LZ_LOCAL_APP_ACTION_MAX 2
 #define LZ_LOCAL_APP_ACTION_EFFECT_MAX 32
@@ -210,6 +211,9 @@ typedef struct {
     char error[48];              /* launch blocked reason, if any */
     uint32_t data_used_bytes;
     uint32_t data_quota_bytes;
+    uint32_t entry_source_bytes;
+    uint32_t runtime_used_bytes;  /* app-controlled resident text/action state */
+    uint32_t runtime_budget_bytes;
     uint16_t permissions;         /* manifest permissions captured at launch */
     bool entry_loaded;
     bool storage_ready;
@@ -234,6 +238,9 @@ bool lz_svc_app_data_usage(const lz_local_app_t *app, uint32_t *used, uint32_t *
 bool lz_svc_clear_app_data(const lz_local_app_t *app, char *err, int err_cap);
 bool lz_svc_start_local_app(const lz_local_app_t *app, lz_local_app_session_t *out);
 bool lz_svc_local_app_action(lz_local_app_session_t *session, int idx);
+uint32_t lz_local_app_runtime_used(const lz_local_app_session_t *session);
+void lz_local_app_runtime_refresh(lz_local_app_session_t *session);
+bool lz_local_app_runtime_within_budget(lz_local_app_session_t *session);
 
 /* ---- nodes ---- */
 int  lz_svc_nodes(const lz_node_rt **out);              /* all heard nodes */
