@@ -115,6 +115,7 @@ Status labels:
 | Emergency beacon | Planned | Design spec section 12, disabled Emergency UI row | Requires Feedback Manager and dual-network messaging. |
 | BLE companion | Partial, needs validation | NimBLE-based Meshtastic GATT service, official UUIDs, raw `ToRadio` writes, queued `FromRadio` reads, `FromNum` notifications, UI toggle, and serial selftest/status | Validate with the official Meshtastic app over BLE before calling V0.5 complete. |
 | CI and release checks | Partial | `.github/workflows/firmware.yml` runs native simulator build, native protocol selftest, deterministic simulator scenario, screenshot generation, T-Deck build, size reporting, an explicit firmware/static-RAM budget gate, and artifact upload with budget metadata plus screenshots; `docs/tdeck-release-checklist.md` and `scripts/release_evidence.py` define the exact-artifact COM8 evidence path | Add protocol vectors beyond the native selftest and keep expanding hardware evidence gates. |
+| CI and release checks | Partial | `.github/workflows/firmware.yml` runs native simulator build, native protocol selftest, deterministic simulator scenario, screenshot generation, T-Deck build, size reporting, an explicit firmware/static-RAM budget gate, and artifact upload with budget metadata plus screenshots. The codec selftest now includes Meshtastic channel/hash, frame-boundary, and malformed protobuf guard vectors alongside existing MeshCore crypto references. | Add broader stock-device packet captures and hardware evidence gates. |
 
 ## Completion Criteria
 
