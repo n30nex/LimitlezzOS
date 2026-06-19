@@ -38,8 +38,22 @@ dogfood belong to the later roadmap phases.
 - Capture the boot banner and every `[ok]` or failure line.
 - Confirm display, touch, keyboard, trackball, SD, SX1262, Wi-Fi state, battery, and time source are reported.
 - Run `help` and confirm diagnostics include `dm status`, `rxlog`, `nodes`, `net`, `rf`, `companion`, and `companion ble`.
+- For split-airtime runs, capture `rf` before and after traffic. The `timing:`
+  line reports delayed-switch count, average/max lateness, and whether expired
+  slots were held by in-flight RX or MeshCore ACK dwell; this proves scheduler
+  hold behavior but not packet-loss rate by itself.
 
 ## Hardware Evidence Log
+
+### 2026-06-18 COM8 TDM Timing Diagnostic Smoke
+
+- Firmware flashed: PR #12 `tdeck-firmware-7aecfc7aa47565a0228143befb63406abe223cf4` artifact from upstream Firmware CI run `27730027088`.
+- Artifact manifest recorded `budget_status=pass`, `firmware_bytes=1535408`, and `static_ram_bytes=274708`.
+- Port boundary: only `COM8` was opened/flashed/probed during this validation.
+- Direct ROM flashing with `python -m esptool --chip esp32s3 --port COM8 --baud 460800 --no-stub ... write-flash ...` succeeded; bootloader, partitions, `boot_app0.bin`, and firmware hashes all verified.
+- COM8 serial smoke passed with `python scripts/tdeck_smoke.py --skip-upload --port COM8 --open-timeout 60 --boot-timeout 60 --timeout 30 --commands id rf stats`.
+- `rf` reported the new timing diagnostic line on hardware: `timing: late 0 avg 0ms max 0ms | holds rx 0 ack 0`.
+- This run used the default Meshtastic-only image, so it proves the diagnostic is present and stable in serial output; split-airtime RX/ACK hold counts still need a MeshCore-enabled soak run after the TDM artifact branch lands.
 
 ### 2026-06-14 COM8 Smoke Attempt
 
