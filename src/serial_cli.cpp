@@ -11,6 +11,7 @@
 
 #include <Arduino.h>
 #include "services/mesh.h"
+#include "services/ota_boot.h"
 #include "services/wifi.h"
 #include "ui/ui.h"
 
@@ -70,6 +71,7 @@ static void cmd_help(void)
         "  send <text>          broadcast text on the channel\n"
         "  stats                radio TX/RX + airtime utilization\n"
         "  wifi [scan|on|off]   wifi status / control\n"
+        "  ota boot-policy|boot-test  OTA rollback policy diagnostics\n"
         "  sys                  battery, uptime, memory\n"
         "  id                   this node's identity\n"
         "  reboot               restart the device"));
@@ -405,6 +407,51 @@ static void cmd_sys(void)
                   si.cpu_mhz, si.ram_used_kb, si.ram_total_kb, (unsigned)si.uptime_s);
 }
 
+static void ota_print_decision(const lz_ota_boot_signals_t *s)
+{
+    lz_ota_boot_decision_t d;
+    lz_ota_boot_decide(s, &d);
+    Serial.printf("ota boot policy: action=%s apps=%s updates=%s reason=\"%s\"\n",
+                  lz_ota_boot_action_name(d.action),
+                  d.allow_app_launch ? "allow" : "hold",
+                  d.allow_new_update ? "allow" : "hold",
+                  d.reason);
+}
+
+static void cmd_ota(char *args)
+{
+    if(args && strcmp(args, "boot-test") == 0) {
+        char err[64];
+        bool ok = lz_ota_boot_selftest(err, sizeof err);
+        Serial.printf("OTA boot policy selftest: %s", ok ? "PASS" : "FAIL");
+        if(err[0]) Serial.printf(" %s", err);
+        Serial.println();
+        return;
+    }
+    if(args && strncmp(args, "boot-policy", 11) == 0) {
+        char *mode = args + 11;
+        while(*mode == ' ') mode++;
+        lz_ota_boot_signals_t s = {0};
+        if(strcmp(mode, "pending") == 0) {
+            s.pending_verify = true;
+            s.boot_selftest_passed = true;
+        } else if(strcmp(mode, "confirmed") == 0) {
+            s.pending_verify = true;
+            s.boot_selftest_passed = true;
+            s.user_confirmed = true;
+        } else if(strcmp(mode, "fault") == 0) {
+            s.pending_verify = true;
+            s.boot_selftest_passed = true;
+            s.critical_fault = true;
+        } else if(strcmp(mode, "selftest-fail") == 0) {
+            s.pending_verify = true;
+        }
+        ota_print_decision(&s);
+        return;
+    }
+    Serial.println("usage: ota boot-policy [pending|confirmed|fault|selftest-fail] | ota boot-test");
+}
+
 static void cmd_id(void)
 {
     const lz_identity_t *id = lz_svc_identity();
@@ -440,6 +487,7 @@ static void dispatch(char *line)
     else if(!strcmp(line, "send"))    cmd_send(args);
     else if(!strcmp(line, "stats"))   cmd_stats();
     else if(!strcmp(line, "wifi"))    cmd_wifi(args);
+    else if(!strcmp(line, "ota"))     cmd_ota(args);
     else if(!strcmp(line, "sys"))     cmd_sys();
     else if(!strcmp(line, "id"))      cmd_id();
     else if(!strcmp(line, "reboot"))  { Serial.println("[ok] rebooting"); delay(50); ESP.restart(); }

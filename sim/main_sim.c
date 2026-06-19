@@ -31,6 +31,7 @@
 #include "lvgl.h"
 #include "ui/ui.h"
 #include "services/mesh.h"
+#include "services/ota_boot.h"
 #include "services/mtproto.h"
 #include "services/mcproto.h"
 #include "services/mc_x25519.h"
@@ -718,7 +719,14 @@ static int codec_selftest(void)
         lz_store_init(NULL);
     }
 
-    /* 10. local app scanner: valid manifests become local apps; broken packages
+    /* 10. OTA boot policy: fail closed while a new image is pending verify. */
+    {
+        char err[64];
+        CHECK(lz_ota_boot_selftest(err, sizeof err),
+              "OTA boot policy selftest");
+    }
+
+    /* 11. local app scanner: valid manifests become local apps; broken packages
      *    are ignored before they can reach Home/App Store. */
     {
         extern void lz_store_init(const char *datadir);
