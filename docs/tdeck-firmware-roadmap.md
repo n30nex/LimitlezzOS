@@ -421,7 +421,7 @@ Deliverables:
   - release checklist. Initial T-Deck release evidence checklist is implemented in `docs/tdeck-release-checklist.md`; broader user/recovery docs remain.
   - hardware flashing/recovery guide. Initial T-Deck Actions-artifact flashing and recovery guide is implemented in `docs/tdeck-flashing-recovery.md`.
   - release checklist
-  - troubleshooting
+  - troubleshooting. Initial T-Deck troubleshooting guide is implemented in `docs/tdeck-troubleshooting.md`.
 - Automated checks:
   - T-Deck compile
   - simulator selftest
