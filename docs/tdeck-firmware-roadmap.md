@@ -416,7 +416,7 @@ Deliverables:
 - Close remaining gaps from the audit and feature inventory.
 - Full docs:
   - user guide
-  - app developer guide
+  - app developer guide. Initial SDK 0.1 local app developer guide is implemented in `docs/tdeck-app-developer-guide.md`.
   - hardware flashing/recovery guide
   - release checklist
   - troubleshooting
