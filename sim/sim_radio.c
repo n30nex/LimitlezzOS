@@ -766,7 +766,7 @@ int sim_scenario_run(void)
     ST_CHECK(base && (base->telem_flags & LZ_NODE_TEL_VOLT), "MT: TELEMETRY voltage decoded");
 
     lz_core_on_nodeinfo(0x10203040, "!10203040", "Ridge Relay", "RLY",
-                        1, "T-Beam", -4.5f);
+                        2, "T-Beam", -4.5f);   /* role 2 = Router (infra, observe-only) */
     lz_node_rt *relay = lz_svc_node_by_name("Ridge Relay");
     char trace[128];
     int trace_n = lz_svc_node_trace(relay, trace, sizeof trace);
