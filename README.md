@@ -254,7 +254,9 @@ python scripts/tdeck_smoke.py --port /dev/ttyACM0 --no-stub-upload --skip-build 
 
 The fetch helper uses the current branch and current commit by default, then
 downloads the matching successful `Firmware CI` artifact with `gh`. It refuses
-to use an older run unless `--allow-latest-success` is passed.
+to use an older run unless `--allow-latest-success` is passed, and verifies the
+downloaded `FLASH_MANIFEST.txt` before printing the local flash command: artifact
+SHA, Actions run id, and T-Deck budget status must match.
 
 CI runs the native simulator build, native codec selftest, deterministic simulator
 scenario, screenshot generation, T-Deck firmware build, and T-Deck size report
