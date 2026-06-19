@@ -55,7 +55,7 @@ Deliverables:
 - Make CI artifacts usable for local hardware smoke on slow hosts. Implemented: Firmware CI now uploads a flash bundle with bootloader, partitions, boot app, firmware, ELF/map, and manifest; `scripts/fetch_tdeck_artifact.py` downloads the exact-commit artifact for local `scripts/tdeck_smoke.py --skip-build` flashing.
 - Add a simulator CI path or clear host-specific setup docs for SDL2. Implemented in `.github/workflows/firmware.yml`; Ubuntu CI installs SDL2, Windows can install the local SDL2 bundle with `scripts/ensure_sdl2_windows.ps1`, and `pio run -e native` runs through `scripts/pio_native_sdl2.py`.
 - Make `pio run -e native` fail clearly when SDL2 is absent. Implemented by `scripts/pio_native_sdl2.py`; Linux/macOS use `sdl2-config` or `pkg-config`, while Windows uses `SDL2_DIR` or the local `.deps` bundle.
-- Add a release checklist covering build, flash, boot log, display, touch, keyboard, trackball, SD, radio, Wi-Fi, companion, and sleep.
+- Add a release checklist covering build, flash, boot log, display, touch, keyboard, trackball, SD, radio, Wi-Fi, companion, and sleep. Implemented in `docs/tdeck-release-checklist.md`, with `scripts/release_evidence.py` generating a PR-ready slow-host Actions artifact plus COM8 evidence skeleton.
 - Update README status wording so "working", "partial", "prototype", and "planned" are distinct.
 - Persist user settings beyond identity/Wi-Fi/touch/keys: brightness, timeout, clock format, time zone, keyboard light, TX power, network toggles, power saving. Implemented through `settings.cfg`; Wi-Fi credential hardening remains V0.96.
 - Hide Terminal behind a temporary Developer Mode setting or remove it from the default launcher until Developer Mode exists. Implemented: Terminal is hidden from Home until Developer Mode is enabled in Settings.
@@ -418,7 +418,7 @@ Deliverables:
   - user guide
   - app developer guide
   - hardware flashing/recovery guide
-  - release checklist
+  - release checklist. Initial T-Deck release evidence checklist is implemented in `docs/tdeck-release-checklist.md`; broader user/recovery docs remain.
   - troubleshooting
 - Automated checks:
   - T-Deck compile

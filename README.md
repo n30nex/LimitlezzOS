@@ -146,6 +146,7 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
 - [`docs/tdeck-feature-inventory.md`](docs/tdeck-feature-inventory.md) - feature-by-feature implementation inventory.
 - [`docs/tdeck-firmware-roadmap.md`](docs/tdeck-firmware-roadmap.md) - roadmap to a complete T-Deck firmware.
 - [`docs/tdeck-hardware-dogfood-checklist.md`](docs/tdeck-hardware-dogfood-checklist.md) - stock-device hardware proof checklist.
+- [`docs/tdeck-release-checklist.md`](docs/tdeck-release-checklist.md) - slow-host Actions artifact and COM8 release evidence checklist.
 
 ![screens](docs/screens.png)
 
@@ -257,6 +258,9 @@ python scripts/tdeck_smoke.py --port /dev/ttyACM0 --no-stub-upload --skip-build 
 The fetch helper uses the current branch and current commit by default, then
 downloads the matching successful `Firmware CI` artifact with `gh`. It refuses
 to use an older run unless `--allow-latest-success` is passed.
+
+For release PRs, `python scripts/release_evidence.py --artifact-dir .pio/ci-artifacts/tdeck --port COM8`
+prints the required local, Actions, artifact, and COM8 evidence checklist.
 
 CI runs the native simulator build, native codec selftest, deterministic simulator
 scenario, screenshot generation, T-Deck firmware build, and T-Deck size report
