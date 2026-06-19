@@ -439,7 +439,7 @@ Deliverables:
 - Release gates:
   - no known P0/P1 bugs
   - README status matches code and test evidence
-  - binaries attached to release
+  - binaries attached to release. Initial release artifact attachment runbook is implemented in `docs/tdeck-release-artifacts.md`.
   - upgrade path documented
 
 Exit criteria:
