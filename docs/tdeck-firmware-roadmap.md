@@ -417,7 +417,7 @@ Deliverables:
 - Full docs:
   - user guide
   - app developer guide
-  - hardware flashing/recovery guide
+  - hardware flashing/recovery guide. Initial T-Deck Actions-artifact flashing and recovery guide is implemented in `docs/tdeck-flashing-recovery.md`.
   - release checklist
   - troubleshooting
 - Automated checks:

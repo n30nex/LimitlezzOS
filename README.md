@@ -363,6 +363,9 @@ sandbox, App Store networking, OTA, and the Feedback Manager (LED/buzzer/backlig
 
 ## Flashing & first hardware test
 
+For the full Actions-artifact flash and recovery workflow, see
+[`docs/tdeck-flashing-recovery.md`](docs/tdeck-flashing-recovery.md).
+
 ```sh
 pio run -e tdeck -t upload        # build + flash over USB-C
 pio device monitor -b 115200      # watch the boot diagnostics
