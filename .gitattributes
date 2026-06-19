@@ -1,2 +1,6 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Append-only narrative docs: auto-union on merge so the 50 codex PRs that each
+# append a roadmap/inventory/changelog line don't each throw a manual conflict.
+docs/tdeck-firmware-roadmap.md      merge=union
+docs/tdeck-feature-inventory.md     merge=union
+docs/tdeck-hardware-dogfood-checklist.md merge=union
+README.md                           merge=union
