@@ -154,6 +154,7 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
 - [`docs/tdeck-app-developer-guide.md`](docs/tdeck-app-developer-guide.md) - SDK 0.1 local app developer guide.
 - [`docs/tdeck-hardware-test-matrix.md`](docs/tdeck-hardware-test-matrix.md) - release-candidate hardware validation matrix.
 - [`docs/tdeck-upgrade-path.md`](docs/tdeck-upgrade-path.md) - current USB artifact upgrade and rollback path.
+- [`docs/tdeck-release-artifacts.md`](docs/tdeck-release-artifacts.md) - release binary attachment runbook.
 
 ![screens](docs/screens.png)
 

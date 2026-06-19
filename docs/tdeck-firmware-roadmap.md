@@ -445,6 +445,8 @@ Deliverables:
   - README status matches code and test evidence
   - binaries attached to release
   - upgrade path documented. Initial USB artifact upgrade and rollback guide is implemented in `docs/tdeck-upgrade-path.md`.
+  - binaries attached to release. Initial release artifact attachment runbook is implemented in `docs/tdeck-release-artifacts.md`.
+  - upgrade path documented
 
 Exit criteria:
 
