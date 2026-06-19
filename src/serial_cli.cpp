@@ -11,6 +11,7 @@
 
 #include <Arduino.h>
 #include "services/mesh.h"
+#include "services/power_policy.h"
 #include "services/wifi.h"
 #include "ui/ui.h"
 
@@ -71,6 +72,7 @@ static void cmd_help(void)
         "  stats                radio TX/RX + airtime utilization\n"
         "  wifi [scan|on|off]   wifi status / control\n"
         "  sys                  battery, uptime, memory\n"
+        "  power                battery warning policy and current action\n"
         "  id                   this node's identity\n"
         "  reboot               restart the device"));
 }
@@ -405,6 +407,16 @@ static void cmd_sys(void)
                   si.cpu_mhz, si.ram_used_kb, si.ram_total_kb, (unsigned)si.uptime_s);
 }
 
+static void cmd_power(void)
+{
+    lz_sysinfo_t si;
+    lz_svc_sysinfo(&si);
+    int mv = si.battery_v > 0.0f ? (int)(si.battery_v * 1000.0f + 0.5f) : 0;
+    char b[360];
+    lz_power_policy_diag(b, sizeof b, si.battery_pct, mv, si.charging, si.usb);
+    Serial.print(b);
+}
+
 static void cmd_id(void)
 {
     const lz_identity_t *id = lz_svc_identity();
@@ -441,6 +453,7 @@ static void dispatch(char *line)
     else if(!strcmp(line, "stats"))   cmd_stats();
     else if(!strcmp(line, "wifi"))    cmd_wifi(args);
     else if(!strcmp(line, "sys"))     cmd_sys();
+    else if(!strcmp(line, "power"))   cmd_power();
     else if(!strcmp(line, "id"))      cmd_id();
     else if(!strcmp(line, "reboot"))  { Serial.println("[ok] rebooting"); delay(50); ESP.restart(); }
     else Serial.printf("[err] unknown command '%s' (try help)\n", line);
