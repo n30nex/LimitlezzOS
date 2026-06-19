@@ -31,6 +31,7 @@
 #include "lvgl.h"
 #include "ui/ui.h"
 #include "services/mesh.h"
+#include "services/emergency_guard.h"
 #include "services/mtproto.h"
 #include "services/mcproto.h"
 #include "services/mc_x25519.h"
@@ -663,7 +664,41 @@ static int codec_selftest(void)
         CHECK(!mt_telemetry_decode(bad, sizeof bad, &tb), "TELEMETRY oversized submsg rejected");
     }
 
-    /* 8. store delivery-metadata round-trip: updating a DM that is NOT the first
+    /* 8. emergency guard: SOS requires a deliberate hold plus confirmation
+     *    inside a bounded window before later TX code can run. */
+    {
+        lz_emergency_guard_t g;
+        char diag[220];
+        lz_emergency_guard_reset(&g);
+        CHECK(g.state == LZ_EMERGENCY_IDLE, "emergency guard resets idle");
+        CHECK(!lz_emergency_hold_ready(LZ_EMERGENCY_HOLD_MS - 1),
+              "emergency guard rejects short hold");
+        CHECK(lz_emergency_hold_ready(LZ_EMERGENCY_HOLD_MS),
+              "emergency guard accepts deliberate hold");
+        CHECK(!lz_emergency_guard_confirm(&g, 1000),
+              "emergency guard rejects confirm before arm");
+        CHECK(!lz_emergency_guard_arm(&g, 1000, LZ_EMERGENCY_HOLD_MS - 1),
+              "emergency guard refuses to arm on short hold");
+        CHECK(lz_emergency_guard_arm(&g, 1000, LZ_EMERGENCY_HOLD_MS),
+              "emergency guard arms after hold");
+        CHECK(g.state == LZ_EMERGENCY_ARMED &&
+              lz_emergency_guard_remaining(&g, 6000) == 5000,
+              "emergency guard reports confirmation window");
+        CHECK(lz_emergency_guard_confirm(&g, 10999) &&
+              g.state == LZ_EMERGENCY_TRIGGERED,
+              "emergency guard confirms inside window");
+        lz_emergency_guard_reset(&g);
+        CHECK(lz_emergency_guard_arm(&g, 2000, LZ_EMERGENCY_HOLD_MS),
+              "emergency guard re-arms after reset");
+        CHECK(!lz_emergency_guard_confirm(&g, 2000 + LZ_EMERGENCY_CONFIRM_MS + 1) &&
+              g.state == LZ_EMERGENCY_IDLE,
+              "emergency guard expires stale confirmation");
+        int dn = lz_emergency_guard_diag(&g, 0, diag, sizeof diag);
+        CHECK(dn > 0 && strstr(diag, "hold -> arm -> confirm") != NULL,
+              "emergency guard diagnostic explains flow");
+    }
+
+    /* 9. store delivery-metadata round-trip: updating a DM that is NOT the first
      *    self-record must not desync the scan over the preceding v3 meta record. */
     {
         extern void lz_store_init(const char *datadir);

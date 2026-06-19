@@ -374,6 +374,10 @@ Deliverables:
 - Add low-battery and critical-battery behaviors.
 - Implement emergency beacon:
   - key combo or guarded UI action
+    Initial guard policy implemented in `src/services/emergency_guard.*`: a
+    deliberate hold is required before arming, confirmation must happen inside
+    a bounded window, native selftest covers stale/early confirms, and the
+    `emergency` serial diagnostic exercises the guard without transmitting.
   - send on Meshtastic and MeshCore when available
   - lock-screen takeover
   - feedback pattern that bypasses DND

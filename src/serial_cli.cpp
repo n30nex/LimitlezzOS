@@ -10,6 +10,7 @@
 #ifdef LZ_TARGET_TDECK
 
 #include <Arduino.h>
+#include "services/emergency_guard.h"
 #include "services/mesh.h"
 #include "services/wifi.h"
 #include "ui/ui.h"
@@ -37,6 +38,7 @@ extern "C" void lz_backend_set_rxlog(bool on)             __attribute__((weak));
 
 static char    g_line[160];
 static uint8_t g_len;
+static lz_emergency_guard_t g_emergency_guard;
 
 static void prompt(void) { Serial.print("\nlz> "); }
 
@@ -64,6 +66,7 @@ static void cmd_help(void)
         "  companion ble on|off|test  BLE Meshtastic-app companion advertising\n"
         "  companion test       loopback-verify the companion protocol\n"
         "  touch [cal|debug|S X Y]  touch: 'cal' runs on-screen calibration, 'debug' logs taps, 'S X Y' sets transform\n"
+        "  emergency [arm|confirm|cancel]  diagnostic emergency trigger guard\n"
         "  dm status            show pending sent-DM delivery state\n"
         "  dm test|req <sc>|send <sc> <text>   PKI DM: self-test / request a node's key / send a DM\n"
         "  nodes                list heard nodes\n"
@@ -290,6 +293,28 @@ static void cmd_touch(char *args)
     else Serial.println("[--] touch not present");
 }
 
+static void cmd_emergency(char *args)
+{
+    uint32_t now = millis();
+    if(args && strcmp(args, "arm") == 0) {
+        if(lz_emergency_guard_arm(&g_emergency_guard, now, LZ_EMERGENCY_HOLD_MS))
+            Serial.println("[ok] emergency guard armed; run 'emergency confirm' within the window");
+        else
+            Serial.println("[err] emergency guard did not arm");
+    } else if(args && strcmp(args, "confirm") == 0) {
+        if(lz_emergency_guard_confirm(&g_emergency_guard, now))
+            Serial.println("[ok] emergency guard would trigger beacon; SOS TX is not wired yet");
+        else
+            Serial.println("[err] emergency guard not armed or expired");
+    } else if(args && strcmp(args, "cancel") == 0) {
+        lz_emergency_guard_reset(&g_emergency_guard);
+        Serial.println("[ok] emergency guard cancelled");
+    }
+    char b[220];
+    lz_emergency_guard_diag(&g_emergency_guard, now, b, sizeof b);
+    Serial.print(b);
+}
+
 static void cmd_companion(char *args)
 {
     if(args && strncmp(args, "ble", 3) == 0) {
@@ -430,6 +455,7 @@ static void dispatch(char *line)
     else if(!strcmp(line, "mc"))      cmd_mc(args);
     else if(!strcmp(line, "companion")) cmd_companion(args);
     else if(!strcmp(line, "touch"))   cmd_touch(args);
+    else if(!strcmp(line, "emergency")) cmd_emergency(args);
     else if(!strcmp(line, "dm"))      cmd_dm(args);
     else if(!strcmp(line, "rxlog")) {
         bool on = !(args && strcmp(args, "off") == 0);
