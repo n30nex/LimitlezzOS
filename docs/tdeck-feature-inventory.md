@@ -28,8 +28,8 @@ Status labels:
 | --- | --- | --- | --- |
 | T-Deck PlatformIO firmware target | Functional, CI-covered, needs hardware validation | `platformio.ini`, `src/main_tdeck.cpp`; `.github/workflows/firmware.yml` builds `pio run -e tdeck`, captures size output, and uploads firmware artifacts | Keep validating board profile against actual T-Deck flash/PSRAM during hardware smoke runs. |
 | OTA-ready partition layout | Partial | `partitions.csv` has `ota_0`, `ota_1`, `otadata`, `config`, `appfs` | OTA service and update UI are not implemented. |
-| Display and LVGL shell | Functional, needs validation | LovyanGFX ST7789 setup, LVGL buffers, UI screens | Hardware flash/smoke checklist needed for every release. |
-| Trackball and keyboard input | Functional, needs validation | GPIO interrupts and I2C keyboard polling in `main_tdeck.cpp` | Add hardware test checklist and input regression tests in simulator. |
+| Display and LVGL shell | Functional, needs validation | LovyanGFX ST7789 setup, LVGL buffers, UI screens | Use `docs/tdeck-release-checklist.md` for every release hardware pass. |
+| Trackball and keyboard input | Functional, needs validation | GPIO interrupts and I2C keyboard polling in `main_tdeck.cpp` | Use the release checklist for hardware input proof; add input regression tests in simulator. |
 | Touch and calibration | Functional, needs validation | GT911 driver and `touch.cfg` persistence | Add explicit touch calibration validation after flash. |
 | SD-backed data directory | Functional, needs validation | SD mount and `/sd/limitlezz` store | Add corruption/power-loss tests and storage quota handling. |
 | Battery/system telemetry | Partial | ADC battery reading, system screen stats | Charge state is inferred/limited; no dedicated charge-detect line. |
@@ -110,7 +110,7 @@ Status labels:
 | Feedback Manager | Planned | Design spec section 8 | Centralize LED, buzzer, keyboard/display feedback and DND. |
 | Emergency beacon | Planned | Design spec section 12, disabled Emergency UI row | Requires Feedback Manager and dual-network messaging. |
 | BLE companion | Partial, needs validation | NimBLE-based Meshtastic GATT service, official UUIDs, raw `ToRadio` writes, queued `FromRadio` reads, `FromNum` notifications, UI toggle, and serial selftest/status | Validate with the official Meshtastic app over BLE before calling V0.5 complete. |
-| CI and release checks | Partial | `.github/workflows/firmware.yml` runs native simulator build, native protocol selftest, deterministic simulator scenario, screenshot generation, T-Deck build, size reporting, an explicit firmware/static-RAM budget gate, and artifact upload with budget metadata plus screenshots | Add protocol vectors beyond the native selftest and hardware evidence gates. |
+| CI and release checks | Partial | `.github/workflows/firmware.yml` runs native simulator build, native protocol selftest, deterministic simulator scenario, screenshot generation, T-Deck build, size reporting, an explicit firmware/static-RAM budget gate, and artifact upload with budget metadata plus screenshots; `docs/tdeck-release-checklist.md` and `scripts/release_evidence.py` define the exact-artifact COM8 evidence path | Add protocol vectors beyond the native selftest and keep expanding hardware evidence gates. |
 
 ## Completion Criteria
 
