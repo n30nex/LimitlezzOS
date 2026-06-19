@@ -415,7 +415,7 @@ Deliverables:
 
 - Close remaining gaps from the audit and feature inventory.
 - Full docs:
-  - user guide
+  - user guide. Initial T-Deck user guide is implemented in `docs/tdeck-user-guide.md`.
   - app developer guide
   - hardware flashing/recovery guide
   - release checklist
