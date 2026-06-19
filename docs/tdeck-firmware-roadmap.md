@@ -328,6 +328,8 @@ Deliverables:
 - Download app zip/package.
 - Verify SHA256 before install.
 - Extract to app staging directory, then atomically promote to installed directory.
+  Initial foundation: hidden staging directories, manifest-id validation, live
+  app backup/rollback promotion, and staging discard helpers.
 - Show update badges on installed apps.
 - Support uninstall/delete with data retention choice.
 - Add plain-language permission prompts.

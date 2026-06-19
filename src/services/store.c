@@ -236,6 +236,81 @@ static bool app_data_clear_walk(const char *dir, int depth, int *entries,
     return true;
 }
 
+#define LZ_APP_INSTALL_MAX_ENTRIES 128
+#define LZ_APP_INSTALL_MAX_DEPTH 4
+
+static bool path_remove_tree_walk(const char *dir, int depth, int *entries,
+                                  char *err, int err_cap)
+{
+    if(depth > LZ_APP_INSTALL_MAX_DEPTH) {
+        set_err(err, err_cap, "install too deep");
+        return false;
+    }
+    DIR *d = opendir(dir);
+    if(!d) {
+        set_err(err, err_cap, "install scan failed");
+        return false;
+    }
+
+    struct dirent *e;
+    while((e = readdir(d)) != NULL) {
+        if(strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+        if(++(*entries) > LZ_APP_INSTALL_MAX_ENTRIES) {
+            closedir(d);
+            set_err(err, err_cap, "install too many files");
+            return false;
+        }
+
+        char path[160];
+        path_join(path, sizeof path, dir, e->d_name);
+        struct stat st;
+        if(stat(path, &st) != 0) {
+            closedir(d);
+            set_err(err, err_cap, "install scan failed");
+            return false;
+        }
+        if(S_ISDIR(st.st_mode)) {
+            if(!path_remove_tree_walk(path, depth + 1, entries, err, err_cap)) {
+                closedir(d);
+                return false;
+            }
+            if(!path_rmdir(path)) {
+                closedir(d);
+                set_err(err, err_cap, "install remove failed");
+                return false;
+            }
+        } else if(remove(path) != 0) {
+            closedir(d);
+            set_err(err, err_cap, "install remove failed");
+            return false;
+        }
+    }
+    closedir(d);
+    return true;
+}
+
+static bool path_remove_tree(const char *path, char *err, int err_cap)
+{
+    if(!path || !path[0]) {
+        set_err(err, err_cap, "install remove failed");
+        return false;
+    }
+    struct stat st;
+    if(stat(path, &st) != 0) return true;
+    if(!S_ISDIR(st.st_mode)) {
+        if(remove(path) == 0) return true;
+        set_err(err, err_cap, "install remove failed");
+        return false;
+    }
+    int entries = 0;
+    if(!path_remove_tree_walk(path, 0, &entries, err, err_cap)) return false;
+    if(!path_rmdir(path)) {
+        set_err(err, err_cap, "install remove failed");
+        return false;
+    }
+    return true;
+}
+
 /* ---- local app manifests ----
  *
  * First V0.95 app-platform increment: discover installable local app packages
@@ -373,6 +448,17 @@ static bool safe_entry(const char *s)
         if(c == '\\' || c == ':' || c < 32) return false;
     }
     return true;
+}
+
+#define LZ_APP_INSTALL_ID_MAX 23
+#define LZ_APP_STAGING_PREFIX ".install-"
+#define LZ_APP_BACKUP_PREFIX ".previous-"
+
+static bool app_install_temp_name(const char *name)
+{
+    return name &&
+           (strncmp(name, LZ_APP_STAGING_PREFIX, strlen(LZ_APP_STAGING_PREFIX)) == 0 ||
+            strncmp(name, LZ_APP_BACKUP_PREFIX, strlen(LZ_APP_BACKUP_PREFIX)) == 0);
 }
 
 static bool local_app_seen(const lz_local_app_t *out, int n, const char *id)
@@ -631,6 +717,138 @@ static bool load_app_manifest(const char *pkg_dir, lz_local_app_t *app,
     return true;
 }
 
+static bool app_install_paths(const char *id, char *apps, size_t apps_cap,
+                              char *live, size_t live_cap,
+                              char *staging, size_t staging_cap,
+                              char *backup, size_t backup_cap,
+                              char *err, int err_cap)
+{
+    if(!g_persist) {
+        set_err(err, err_cap, "storage unavailable");
+        return false;
+    }
+    if(!safe_id(id) || strlen(id) > LZ_APP_INSTALL_ID_MAX) {
+        set_err(err, err_cap, "unsafe id");
+        return false;
+    }
+
+    char staging_name[40];
+    char backup_name[40];
+    int sn = snprintf(staging_name, sizeof staging_name, "%s%s", LZ_APP_STAGING_PREFIX, id);
+    int bn = snprintf(backup_name, sizeof backup_name, "%s%s", LZ_APP_BACKUP_PREFIX, id);
+    if(sn < 0 || sn >= (int)sizeof staging_name || bn < 0 || bn >= (int)sizeof backup_name) {
+        set_err(err, err_cap, "path too long");
+        return false;
+    }
+
+    path_join(apps, apps_cap, g_dir, "apps");
+    path_join(live, live_cap, apps, id);
+    path_join(staging, staging_cap, apps, staging_name);
+    path_join(backup, backup_cap, apps, backup_name);
+    return true;
+}
+
+static bool copy_install_path(char *out, int out_cap, const char *path,
+                              char *err, int err_cap)
+{
+    if(!out || out_cap <= 0) return true;
+    int n = snprintf(out, (size_t)out_cap, "%s", path);
+    if(n < 0 || n >= out_cap) {
+        out[0] = 0;
+        set_err(err, err_cap, "path too long");
+        return false;
+    }
+    return true;
+}
+
+bool lz_store_prepare_app_install(const char *id, char *staging_path, int staging_cap,
+                                  char *live_path, int live_cap,
+                                  char *err, int err_cap)
+{
+    if(staging_path && staging_cap > 0) staging_path[0] = 0;
+    if(live_path && live_cap > 0) live_path[0] = 0;
+    set_err(err, err_cap, "");
+
+    char apps[128], live[160], staging[160], backup[160];
+    if(!app_install_paths(id, apps, sizeof apps, live, sizeof live,
+                          staging, sizeof staging, backup, sizeof backup,
+                          err, err_cap))
+        return false;
+    if(!path_mkdir(apps) || !path_is_dir(apps)) {
+        set_err(err, err_cap, "apps mkdir failed");
+        return false;
+    }
+    if(!path_remove_tree(staging, err, err_cap)) return false;
+    if(!path_mkdir(staging) || !path_is_dir(staging)) {
+        set_err(err, err_cap, "staging mkdir failed");
+        return false;
+    }
+    if(!copy_install_path(staging_path, staging_cap, staging, err, err_cap)) return false;
+    if(!copy_install_path(live_path, live_cap, live, err, err_cap)) return false;
+    return true;
+}
+
+bool lz_store_discard_app_install(const char *id, char *err, int err_cap)
+{
+    set_err(err, err_cap, "");
+    char apps[128], live[160], staging[160], backup[160];
+    if(!app_install_paths(id, apps, sizeof apps, live, sizeof live,
+                          staging, sizeof staging, backup, sizeof backup,
+                          err, err_cap))
+        return false;
+    return path_remove_tree(staging, err, err_cap);
+}
+
+bool lz_store_promote_app_install(const char *id, char *err, int err_cap)
+{
+    set_err(err, err_cap, "");
+    char apps[128], live[160], staging[160], backup[160];
+    if(!app_install_paths(id, apps, sizeof apps, live, sizeof live,
+                          staging, sizeof staging, backup, sizeof backup,
+                          err, err_cap))
+        return false;
+    if(!path_is_dir(staging)) {
+        set_err(err, err_cap, "staging missing");
+        return false;
+    }
+
+    lz_local_app_t app;
+    char reason[48] = "invalid manifest";
+    if(!load_app_manifest(staging, &app, reason, sizeof reason)) {
+        set_err(err, err_cap, reason);
+        return false;
+    }
+    if(strcmp(app.id, id) != 0) {
+        set_err(err, err_cap, "id mismatch");
+        return false;
+    }
+    if(!path_mkdir(apps) || !path_is_dir(apps)) {
+        set_err(err, err_cap, "apps mkdir failed");
+        return false;
+    }
+    if(path_is_file(live)) {
+        set_err(err, err_cap, "live not dir");
+        return false;
+    }
+    if(!path_remove_tree(backup, err, err_cap)) return false;
+
+    bool had_live = path_is_dir(live);
+    if(had_live && rename(live, backup) != 0) {
+        set_err(err, err_cap, "backup failed");
+        return false;
+    }
+    if(rename(staging, live) != 0) {
+        if(had_live) rename(backup, live);
+        set_err(err, err_cap, "promote failed");
+        return false;
+    }
+    if(had_live) {
+        char cleanup_err[32];
+        path_remove_tree(backup, cleanup_err, sizeof cleanup_err);
+    }
+    return true;
+}
+
 static void scan_app_root(const char *apps_dir, lz_local_app_t *out, int cap, int *count)
 {
     if(!apps_dir || !out || !count || *count >= cap) return;
@@ -640,6 +858,7 @@ static void scan_app_root(const char *apps_dir, lz_local_app_t *out, int cap, in
     struct dirent *e;
     while(*count < cap && (e = readdir(d)) != NULL) {
         if(strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+        if(app_install_temp_name(e->d_name)) continue;
         char pkg[128];
         path_join(pkg, sizeof pkg, apps_dir, e->d_name);
         if(!path_is_dir(pkg)) continue;
@@ -686,6 +905,7 @@ static void scan_app_issue_root(const char *apps_dir, lz_local_app_issue_t *out,
     struct dirent *e;
     while(*count < cap && (e = readdir(d)) != NULL) {
         if(strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+        if(app_install_temp_name(e->d_name)) continue;
         char pkg[128];
         path_join(pkg, sizeof pkg, apps_dir, e->d_name);
         if(!path_is_dir(pkg)) continue;
