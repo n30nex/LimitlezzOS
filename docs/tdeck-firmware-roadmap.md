@@ -365,6 +365,11 @@ Deliverables:
 - Fetch catalog over Wi-Fi.
 - Cache catalog for offline browsing. Initial implementation: bounded atomic
   catalog JSON cache save/load/clear service APIs with native simulator coverage.
+- Define catalog `index.json` schema: app id, name, version, author, description, icon id/color, permissions, download URL, SHA256, size, compatibility, screenshots if desired.
+- Fetch catalog over Wi-Fi. Initial implementation: bounded T-Deck HTTP/HTTPS
+  catalog fetch transport gated on connected Wi-Fi, with native simulator stub
+  coverage for URL/buffer errors.
+- Cache catalog for offline browsing.
 - Download app zip/package.
 - Verify SHA256 before install. Initial foundation: reusable package-file SHA256
   hashing and expected-hash verification helpers with native simulator coverage.
