@@ -45,7 +45,7 @@ Status labels:
 | Feature | Status | Evidence | Gap / Next Action |
 | --- | --- | --- | --- |
 | LongFast public channel | Functional, needs validation | `mtproto.*`, `backend_sx1262.cpp`, channel thread | Add interop test notes with stock Meshtastic devices. |
-| Channel send/receive | Functional, needs validation | `lz_svc_channel_thread`, `lz_core_on_text`, `lz_backend_send` | Add delivery/error handling for TX failures. |
+| Channel send/receive | Functional, needs validation | `lz_svc_channel_thread`, `lz_core_on_text`, `lz_backend_send`, immediate failed bubble for backend TX rejection | Add stock-device interop notes and hardware TX-failure validation. |
 | Node discovery | Functional, needs validation | NodeInfo parse, heard-node table, 250-node cap | Add role/hardware enum coverage beyond current minimal parse. |
 | Node table persistence | Functional | `nodes.db` save/load with schema header v2, legacy-row migration selftest, serial `nodes test`, and position/telemetry round-trip coverage | Add future migrations as the node schema grows. |
 | Node discovery | Functional, needs validation | NodeInfo parse, heard-node table, 250-node cap, Meshtastic role/hardware enum labels in native scenario coverage | Add stock-device role/hardware validation beyond simulator fixtures. |
