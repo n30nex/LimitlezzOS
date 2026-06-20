@@ -2254,36 +2254,41 @@ static bool app_catalog_package_paths(const lz_app_catalog_entry_t *entry,
 bool lz_store_install_app_catalog_entry(const char *id, const char *package_path,
                                         lz_app_package_install_t *out)
 {
-    lz_app_package_install_t r;
-    memset(&r, 0, sizeof r);
-    if(id) snprintf(r.id, sizeof r.id, "%s", id);
-
+    lz_app_package_install_t *r = (lz_app_package_install_t *)calloc(1, sizeof *r);
+    lz_app_catalog_entry_t *entry = (lz_app_catalog_entry_t *)malloc(sizeof *entry);
+    char *selected = (char *)malloc(160);
+    char *tmp = (char *)malloc(168);
     char err[48] = "";
-    lz_app_catalog_entry_t entry;
-    if(!app_catalog_find_entry(id, &entry, err, sizeof err))
+    bool result = false;
+    if(!r || !entry || !selected || !tmp) {
+        set_err(err, sizeof err, "catalog install buffer unavailable");
+        goto fail;
+    }
+    if(id) snprintf(r->id, sizeof r->id, "%s", id);
+    selected[0] = 0;
+    tmp[0] = 0;
+
+    if(!app_catalog_find_entry(id, entry, err, sizeof err))
         goto fail;
 
-    char selected[160];
     bool fetched = false;
     if(package_path && package_path[0]) {
-        if(snprintf(selected, sizeof selected, "%s", package_path) >= (int)sizeof selected) {
+        if(snprintf(selected, 160, "%s", package_path) >= 160) {
             set_err(err, sizeof err, "package path too long");
             goto fail;
         }
     } else {
-        char tmp[168];
-        if(!app_catalog_package_paths(&entry, selected, sizeof selected,
-                                      tmp, sizeof tmp, err, sizeof err))
+        if(!app_catalog_package_paths(entry, selected, 160, tmp, 168, err, sizeof err))
             goto fail;
         remove(tmp);
         uint32_t fetched_bytes = 0;
-        if(!lz_app_package_fetch(entry.package_url, tmp, entry.package_bytes,
+        if(!lz_app_package_fetch(entry->package_url, tmp, entry->package_bytes,
                                  LZ_APP_PACKAGE_MAX_BYTES, &fetched_bytes,
                                  err, sizeof err)) {
             remove(tmp);
             goto fail;
         }
-        if(fetched_bytes != entry.package_bytes) {
+        if(fetched_bytes != entry->package_bytes) {
             remove(tmp);
             set_err(err, sizeof err, "size mismatch");
             goto fail;
@@ -2297,22 +2302,27 @@ bool lz_store_install_app_catalog_entry(const char *id, const char *package_path
         fetched = true;
     }
 
-    if(!lz_store_install_app_package(entry.id, selected, entry.package_sha256,
-                                     entry.package_bytes, &r)) {
-        r.fetched = fetched;
-        snprintf(r.package_path, sizeof r.package_path, "%s", selected);
-        if(out) *out = r;
-        return false;
+    if(!lz_store_install_app_package(entry->id, selected, entry->package_sha256,
+                                     entry->package_bytes, r)) {
+        r->fetched = fetched;
+        snprintf(r->package_path, sizeof r->package_path, "%s", selected);
+        goto done;
     }
-    r.fetched = fetched;
-    snprintf(r.package_path, sizeof r.package_path, "%s", selected);
-    if(out) *out = r;
-    return true;
+    r->fetched = fetched;
+    snprintf(r->package_path, sizeof r->package_path, "%s", selected);
+    result = true;
+    goto done;
 
 fail:
-    snprintf(r.error, sizeof r.error, "%s", err[0] ? err : "catalog install failed");
-    if(out) *out = r;
-    return false;
+    if(r) snprintf(r->error, sizeof r->error, "%s",
+                   err[0] ? err : "catalog install failed");
+done:
+    if(out && r) *out = *r;
+    free(tmp);
+    free(selected);
+    free(entry);
+    free(r);
+    return result;
 }
 
 static bool app_package_write_u16(FILE *f, uint16_t v)
