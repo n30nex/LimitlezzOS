@@ -136,6 +136,31 @@ static void sim_write_local_app(const char *datadir, const char *slug,
     }
 }
 
+static void sim_write_install_app(const char *dir, const char *id,
+                                  const char *name, const char *version)
+{
+    char path[192];
+    sim_mkdirs(dir);
+    snprintf(path, sizeof path, "%s/manifest.json", dir);
+    FILE *mf = fopen(path, "wb");
+    if(mf) {
+        fprintf(mf, "{\"id\":\"%s\",\"name\":\"%s\",\"version\":\"%s\","
+                    "\"author\":\"Limitless\",\"entry\":\"main.lua\","
+                    "\"icon\":\"package\",\"hue\":84,\"api_version\":\"0.1\","
+                    "\"permissions\":[\"display\"],"
+                    "\"summary\":\"Install pipeline test\"}",
+                id, name, version);
+        fclose(mf);
+    }
+
+    snprintf(path, sizeof path, "%s/main.lua", dir);
+    FILE *entry = fopen(path, "wb");
+    if(entry) {
+        fprintf(entry, "-- title: %s\n-- body: Install pipeline test\nreturn true\n", name);
+        fclose(entry);
+    }
+}
+
 static void sim_seed_local_app(const char *datadir)
 {
     char dir[160], path[192];
@@ -1106,6 +1131,51 @@ static int codec_selftest(void)
                   strcmp(err, "bad sha256") == 0,
               "app package SHA256 verifier rejects malformed hash");
         remove("./pkg_hash.bin");
+    }
+    /* 10. app install staging: extracted packages stay hidden until a checked
+     *     staging directory is promoted into the live apps tree. */
+    {
+        extern void lz_store_init(const char *datadir);
+        extern int  lz_store_scan_apps(lz_local_app_t *out, int cap);
+        extern bool lz_store_prepare_app_install(const char *id, char *staging_path, int staging_cap,
+                                                 char *live_path, int live_cap,
+                                                 char *err, int err_cap);
+        extern bool lz_store_promote_app_install(const char *id, char *err, int err_cap);
+        extern bool lz_store_discard_app_install(const char *id, char *err, int err_cap);
+
+        sim_reset_dir("lzdata_appinstall");
+        lz_store_init("lzdata_appinstall");
+        char staging[160], live[160], err[48];
+        bool prep = lz_store_prepare_app_install("weather.mesh", staging, sizeof staging,
+                                                 live, sizeof live, err, sizeof err);
+        CHECK(prep && strstr(staging, ".install-weather.mesh") != NULL,
+              "app install staging path prepares");
+        CHECK(prep && strstr(live, "apps/weather.mesh") != NULL,
+              "app install live path stays in apps root");
+        sim_write_install_app(staging, "weather.mesh", "Weather Mesh", "0.2.0");
+
+        lz_local_app_t install_apps[4];
+        CHECK(lz_store_scan_apps(install_apps, 4) == 0,
+              "app install staging stays hidden from scanner");
+        CHECK(lz_store_promote_app_install("weather.mesh", err, sizeof err),
+              "app install staging promotes live package");
+        int installed = lz_store_scan_apps(install_apps, 4);
+        CHECK(installed == 1 && strcmp(install_apps[0].version, "0.2.0") == 0,
+              "app install promoted package scans as live app");
+
+        CHECK(lz_store_prepare_app_install("weather.mesh", staging, sizeof staging,
+                                           live, sizeof live, err, sizeof err),
+              "app install update staging prepares");
+        sim_write_install_app(staging, "wrong.mesh", "Wrong Mesh", "9.9.9");
+        CHECK(!lz_store_promote_app_install("weather.mesh", err, sizeof err) &&
+                  strcmp(err, "id mismatch") == 0,
+              "app install rejects staged id mismatch");
+        installed = lz_store_scan_apps(install_apps, 4);
+        CHECK(installed == 1 && strcmp(install_apps[0].version, "0.2.0") == 0,
+              "app install failed promote leaves prior app intact");
+        CHECK(lz_store_discard_app_install("weather.mesh", err, sizeof err),
+              "app install staging discard succeeds");
+        lz_store_init(NULL);
     }
 
     /* 11. local app scanner: valid manifests become local apps; broken packages
