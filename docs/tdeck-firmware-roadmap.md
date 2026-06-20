@@ -278,6 +278,10 @@ Deliverables:
   current session body/status plus scoped counter state, and background
   execution is not exposed.
 - Enforce memory cap through the runtime allocator or equivalent guard.
+  Implemented for the SDK 0.1 foreground shell: loaded entry source plus
+  app-controlled title, status, body, action, effect, and storage-path metadata
+  are charged against a 704-byte resident runtime budget, and over-budget apps
+  are launch-blocked before future script runtime code can run.
 - Implement a small initial SDK:
   - UI primitives compatible with the T-Deck screen
   - mesh send/receive API through the service, not radio hardware

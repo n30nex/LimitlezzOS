@@ -564,13 +564,60 @@ static void refresh_session_data_usage(lz_local_app_session_t *s)
         s->data_used_bytes = used;
 }
 
+static void runtime_count_text(uint32_t *used, const char *text)
+{
+    if(!used || !text || !text[0]) return;
+    size_t len = strlen(text) + 1u;
+    if(len > UINT32_MAX - *used) *used = UINT32_MAX;
+    else *used += (uint32_t)len;
+}
+
+uint32_t lz_local_app_runtime_used(const lz_local_app_session_t *s)
+{
+    if(!s) return 0;
+    uint32_t used = s->entry_source_bytes;
+    runtime_count_text(&used, s->title);
+    runtime_count_text(&used, s->status);
+    runtime_count_text(&used, s->body);
+    if(s->storage_ready) runtime_count_text(&used, s->data_path);
+    for(int i = 0; i < s->action_count && i < LZ_LOCAL_APP_ACTION_MAX; i++) {
+        runtime_count_text(&used, s->actions[i].label);
+        runtime_count_text(&used, s->actions[i].status);
+        runtime_count_text(&used, s->actions[i].body);
+        runtime_count_text(&used, s->actions[i].effect);
+    }
+    return used;
+}
+
+void lz_local_app_runtime_refresh(lz_local_app_session_t *s)
+{
+    if(!s) return;
+    if(!s->runtime_budget_bytes)
+        s->runtime_budget_bytes = LZ_LOCAL_APP_RUNTIME_BUDGET_BYTES;
+    s->runtime_used_bytes = lz_local_app_runtime_used(s);
+}
+
+bool lz_local_app_runtime_within_budget(lz_local_app_session_t *s)
+{
+    if(!s) return false;
+    lz_local_app_runtime_refresh(s);
+    if(s->runtime_used_bytes <= s->runtime_budget_bytes) return true;
+    snprintf(s->status, sizeof s->status, "Launch blocked");
+    snprintf(s->body, sizeof s->body, "App runtime metadata exceeds the SDK memory cap.");
+    snprintf(s->error, sizeof s->error, "runtime memory cap exceeded");
+    return false;
+}
+
 static bool app_session_fail(lz_local_app_session_t *out, const lz_local_app_t *app,
                              const char *msg)
 {
     if(out) {
+        if(!out->runtime_budget_bytes)
+            out->runtime_budget_bytes = LZ_LOCAL_APP_RUNTIME_BUDGET_BYTES;
         if(app && app->name[0]) snprintf(out->title, sizeof out->title, "%s", app->name);
         if(!out->status[0]) snprintf(out->status, sizeof out->status, "Launch blocked");
         snprintf(out->error, sizeof out->error, "%s", msg ? msg : "unknown error");
+        lz_local_app_runtime_refresh(out);
     }
     return false;
 }
@@ -802,6 +849,7 @@ bool lz_store_start_local_app(const lz_local_app_t *app, lz_local_app_session_t 
 {
     if(!out) return false;
     memset(out, 0, sizeof *out);
+    out->runtime_budget_bytes = LZ_LOCAL_APP_RUNTIME_BUDGET_BYTES;
     if(!app || !app->id[0]) return app_session_fail(out, app, "missing app");
     out->permissions = app->permissions;
     snprintf(out->title, sizeof out->title, "%s", app->name[0] ? app->name : app->id);
@@ -844,6 +892,7 @@ bool lz_store_start_local_app(const lz_local_app_t *app, lz_local_app_session_t 
     fclose(f);
     raw[n] = 0;
     if(n == 0) return app_session_fail(out, app, "empty entry");
+    out->entry_source_bytes = (uint32_t)n;
     out->entry_loaded = true;
 
     bool have_body = false;
@@ -880,6 +929,7 @@ bool lz_store_start_local_app(const lz_local_app_t *app, lz_local_app_session_t 
         if(app->summary[0]) snprintf(out->body, sizeof out->body, "%s", app->summary);
         else snprintf(out->body, sizeof out->body, "This local app opened in the safe SDK shell.");
     }
+    if(!lz_local_app_runtime_within_budget(out)) return false;
     if(out->action_count > 0 && (app->permissions & LZ_APP_PERM_INPUT) == 0)
         return app_session_fail(out, app, "input permission missing");
     char effect_err[48];
@@ -916,6 +966,7 @@ bool lz_store_local_app_action(lz_local_app_session_t *session, int idx)
         if(a->body[0]) snprintf(session->body, sizeof session->body, "%s", a->body);
     }
     session->action_last = (uint8_t)(idx + 1);
+    (void)lz_local_app_runtime_within_budget(session);
     return true;
 }
 

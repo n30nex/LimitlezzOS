@@ -163,7 +163,11 @@ static void local_app_battery_token(char *out, size_t cap)
 
 static bool local_app_expand_session(lz_local_app_session_t *s)
 {
-    if(!s || s->error[0]) return false;
+    if(!s) return false;
+    if(s->error[0]) {
+        lz_local_app_runtime_refresh(s);
+        return true;
+    }
     bool need_time = local_app_session_has_token(s, "{time}");
     bool need_battery = local_app_session_has_token(s, "{battery}");
     if(need_time && (s->permissions & LZ_APP_PERM_SYSTEM_TIME) == 0)
@@ -176,7 +180,7 @@ static bool local_app_expand_session(lz_local_app_session_t *s)
     local_app_battery_token(battery_s, sizeof battery_s);
     local_app_expand_text(s->status, sizeof s->status, time_s, battery_s);
     local_app_expand_text(s->body, sizeof s->body, time_s, battery_s);
-    return true;
+    return lz_local_app_runtime_within_budget(s);
 }
 
 static uint32_t next_packet_id(void)

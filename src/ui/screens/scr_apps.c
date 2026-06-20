@@ -601,6 +601,7 @@ void lz_scr_local_app_run(lv_obj_t *root)
     char perms[104];
     char storage[80];
     char runtime[48];
+    char memory[48];
     app_perm_list(a->permissions, perms, sizeof perms);
     if(a->permissions & LZ_APP_PERM_STORAGE) {
         if(r->storage_ready)
@@ -617,19 +618,25 @@ void lz_scr_local_app_run(lv_obj_t *root)
                  (unsigned)r->action_count, r->action_count == 1 ? "" : "s");
     else
         snprintf(runtime, sizeof runtime, "%s", r->entry_loaded ? "foreground only" : "not loaded");
-    const char *ks[4] = { "Permissions", "Storage", "Entry", "Runtime" };
-    const char *vs[4] = { perms, storage, a->entry, runtime };
+    if(r->runtime_budget_bytes)
+        snprintf(memory, sizeof memory, "%lu / %lu B",
+                 (unsigned long)r->runtime_used_bytes,
+                 (unsigned long)r->runtime_budget_bytes);
+    else
+        snprintf(memory, sizeof memory, "not measured");
+    const char *ks[5] = { "Permissions", "Storage", "Entry", "Runtime", "Memory" };
+    const char *vs[5] = { perms, storage, a->entry, runtime, memory };
     lv_obj_t *meta = lz_card(body);
     lv_obj_set_height(meta, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(meta, LV_FLEX_FLOW_COLUMN);
-    for(int i = 0; i < 4; i++) {
+    for(int i = 0; i < 5; i++) {
         lv_obj_t *row = lz_box(meta);
         lv_obj_set_width(row, lv_pct(100));
         lv_obj_set_height(row, LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_style_pad_hor(row, 11, 0);
         lv_obj_set_style_pad_ver(row, 7, 0);
-        if(i < 3) {
+        if(i < 4) {
             lv_obj_set_style_border_side(row, LV_BORDER_SIDE_BOTTOM, 0);
             lv_obj_set_style_border_width(row, 1, 0);
             lv_obj_set_style_border_color(row, lv_color_hex(0x21262D), 0);
