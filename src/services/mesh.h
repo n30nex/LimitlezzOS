@@ -246,9 +246,11 @@ typedef struct {
     char id[24];
     char version[16];
     char error[48];
+    char package_path[112];
     uint32_t package_bytes;
     uint32_t extracted_bytes;
     uint16_t file_count;
+    bool fetched;
 } lz_app_package_install_t;
 
 typedef struct {
@@ -341,6 +343,9 @@ bool lz_svc_install_app_package(const char *id, const char *package_path,
                                 const char *sha256, uint32_t package_bytes,
                                 lz_app_package_install_t *out);
 int  lz_svc_app_package_selftest(char *buf, int n);
+bool lz_svc_install_app_catalog_entry(const char *id, const char *package_path,
+                                      lz_app_package_install_t *out);
+int  lz_svc_app_catalog_install_selftest(char *buf, int n);
 bool lz_svc_save_app_catalog_cache(const char *json, int len, char *err, int err_cap);
 bool lz_svc_load_app_catalog_cache(char *out, int cap, int *out_len, char *err, int err_cap);
 bool lz_svc_clear_app_catalog_cache(char *err, int err_cap);

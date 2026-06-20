@@ -77,7 +77,8 @@ static void cmd_help(void)
         "  companion test       loopback-verify the companion protocol\n"
         "  feedback status|test  feedback/app-notification diagnostics\n"
         "  app notify test      request a test app notification\n"
-        "  app catalog status|test  app catalog schema diagnostics\n"
+        "  app catalog status|test|install-test  app catalog diagnostics\n"
+        "  app catalog install <id> [package_path]\n"
         "  app package test|install <id> <path> <sha256> <bytes>\n"
         "  touch [cal|debug|S X Y]  touch: 'cal' runs on-screen calibration, 'debug' logs taps, 'S X Y' sets transform\n"
         "  feedback             show DND/priority feedback policy\n"
@@ -466,6 +467,33 @@ static void cmd_app(char *args)
         Serial.print(b);
         return;
     }
+    if(args && strcmp(args, "catalog install-test") == 0) {
+        char b[180];
+        lz_svc_app_catalog_install_selftest(b, sizeof b);
+        Serial.print(b);
+        return;
+    }
+    if(args && strncmp(args, "catalog install ", 16) == 0) {
+        char id[24] = {0}, path[112] = {0};
+        int parsed = sscanf(args + 16, "%23s %111s", id, path);
+        if(parsed < 1) {
+            Serial.println("usage: app catalog install <id> [package_path]");
+            return;
+        }
+        lz_app_package_install_t r;
+        memset(&r, 0, sizeof r);
+        if(lz_svc_install_app_catalog_entry(id, parsed >= 2 ? path : NULL, &r)) {
+            Serial.printf("[ok] app catalog install id=%s version=%s files=%u source=%s package=%lu extracted=%lu\n",
+                          r.id, r.version, (unsigned)r.file_count,
+                          r.fetched ? "download" : "local",
+                          (unsigned long)r.package_bytes,
+                          (unsigned long)r.extracted_bytes);
+        } else {
+            Serial.printf("[err] app catalog install: %s\n",
+                          r.error[0] ? r.error : "install failed");
+        }
+        return;
+    }
     if(args && strcmp(args, "package test") == 0) {
         char b[180];
         lz_svc_app_package_selftest(b, sizeof b);
@@ -500,7 +528,7 @@ static void cmd_app(char *args)
         Serial.print(b);
         return;
     }
-    Serial.println("usage: app notify test | app catalog status | app catalog test | app package test");
+    Serial.println("usage: app notify test | app catalog status|test|install-test|install <id> [package_path] | app package test");
 }
 
 static void cmd_nodes(char *args)

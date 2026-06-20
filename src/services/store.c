@@ -18,6 +18,7 @@
  */
 #include "mesh.h"
 #include "mc_crypto.h"
+#include "app_package_fetch.h"
 #include <dirent.h>
 #include <stdio.h>
 #include <string.h>
@@ -2082,6 +2083,7 @@ bool lz_store_install_app_package(const char *id, const char *package_path,
     memset(&r, 0, sizeof r);
     if(id) snprintf(r.id, sizeof r.id, "%s", id);
     r.package_bytes = package_bytes;
+    if(package_path) snprintf(r.package_path, sizeof r.package_path, "%s", package_path);
     char err[48] = "";
 
     if(!id || !package_path || !sha256 || package_bytes == 0) {
@@ -2130,6 +2132,133 @@ bool lz_store_install_app_package(const char *id, const char *package_path,
 
 fail:
     snprintf(r.error, sizeof r.error, "%s", err[0] ? err : "install failed");
+    if(out) *out = r;
+    return false;
+}
+
+static bool app_catalog_find_entry(const char *id, lz_app_catalog_entry_t *entry,
+                                   char *err, int err_cap)
+{
+    if(!id || !id[0] || !safe_id(id)) {
+        set_err(err, err_cap, "bad catalog id");
+        return false;
+    }
+    lz_app_catalog_entry_t *catalog =
+        (lz_app_catalog_entry_t *)calloc(LZ_APP_CATALOG_MAX_APPS, sizeof(lz_app_catalog_entry_t));
+    if(!catalog) {
+        set_err(err, err_cap, "catalog buffer unavailable");
+        return false;
+    }
+    lz_app_catalog_report_t report;
+    memset(&report, 0, sizeof report);
+    int n = lz_store_load_app_catalog(catalog, LZ_APP_CATALOG_MAX_APPS, &report);
+    if(n <= 0) {
+        set_err(err, err_cap, report.first_error[0] ? report.first_error : "catalog missing");
+        free(catalog);
+        return false;
+    }
+    for(int i = 0; i < n; i++) {
+        if(strcmp(catalog[i].id, id) == 0) {
+            if(entry) *entry = catalog[i];
+            free(catalog);
+            return true;
+        }
+    }
+    free(catalog);
+    set_err(err, err_cap, "catalog app missing");
+    return false;
+}
+
+static bool app_catalog_package_paths(const lz_app_catalog_entry_t *entry,
+                                      char *path, int path_cap,
+                                      char *tmp, int tmp_cap,
+                                      char *err, int err_cap)
+{
+    if(!g_persist) {
+        set_err(err, err_cap, "storage unavailable");
+        return false;
+    }
+    char dir[128];
+    path_join(dir, sizeof dir, g_dir, "packages");
+    if(!path_mkdir(dir)) {
+        set_err(err, err_cap, "package cache mkdir failed");
+        return false;
+    }
+    char name[40];
+    snprintf(name, sizeof name, "%s.zip", entry->id);
+    if((int)strlen(name) >= (int)sizeof name) {
+        set_err(err, err_cap, "package name too long");
+        return false;
+    }
+    path_join(path, (size_t)path_cap, dir, name);
+    if((int)strlen(path) + 4 >= tmp_cap) {
+        set_err(err, err_cap, "package path too long");
+        return false;
+    }
+    snprintf(tmp, (size_t)tmp_cap, "%s.tmp", path);
+    return true;
+}
+
+bool lz_store_install_app_catalog_entry(const char *id, const char *package_path,
+                                        lz_app_package_install_t *out)
+{
+    lz_app_package_install_t r;
+    memset(&r, 0, sizeof r);
+    if(id) snprintf(r.id, sizeof r.id, "%s", id);
+
+    char err[48] = "";
+    lz_app_catalog_entry_t entry;
+    if(!app_catalog_find_entry(id, &entry, err, sizeof err))
+        goto fail;
+
+    char selected[160];
+    bool fetched = false;
+    if(package_path && package_path[0]) {
+        if(snprintf(selected, sizeof selected, "%s", package_path) >= (int)sizeof selected) {
+            set_err(err, sizeof err, "package path too long");
+            goto fail;
+        }
+    } else {
+        char tmp[168];
+        if(!app_catalog_package_paths(&entry, selected, sizeof selected,
+                                      tmp, sizeof tmp, err, sizeof err))
+            goto fail;
+        remove(tmp);
+        uint32_t fetched_bytes = 0;
+        if(!lz_app_package_fetch(entry.package_url, tmp, entry.package_bytes,
+                                 LZ_APP_PACKAGE_MAX_BYTES, &fetched_bytes,
+                                 err, sizeof err)) {
+            remove(tmp);
+            goto fail;
+        }
+        if(fetched_bytes != entry.package_bytes) {
+            remove(tmp);
+            set_err(err, sizeof err, "size mismatch");
+            goto fail;
+        }
+        remove(selected);
+        if(rename(tmp, selected) != 0) {
+            remove(tmp);
+            set_err(err, sizeof err, "package commit failed");
+            goto fail;
+        }
+        fetched = true;
+    }
+
+    if(!lz_store_install_app_package(entry.id, selected, entry.package_sha256,
+                                     entry.package_bytes, &r)) {
+        r.fetched = fetched;
+        snprintf(r.package_path, sizeof r.package_path, "%s", selected);
+        if(out) *out = r;
+        return false;
+    }
+    r.fetched = fetched;
+    snprintf(r.package_path, sizeof r.package_path, "%s", selected);
+    if(out) *out = r;
+    return true;
+
+fail:
+    snprintf(r.error, sizeof r.error, "%s", err[0] ? err : "catalog install failed");
     if(out) *out = r;
     return false;
 }
@@ -2244,6 +2373,125 @@ static void app_package_selftest_cleanup(const char *id, const char *package_pat
         remove_tree(backup, err, sizeof err);
         remove_tree(live, err, sizeof err);
     }
+}
+
+static bool app_catalog_selftest_save_catalog(const char *id, const char *version,
+                                              const char *sha, uint32_t bytes,
+                                              char *err, int err_cap)
+{
+    char json[1024];
+    int n = snprintf(json, sizeof json,
+        "{\"schema\":\"%s\",\"apps\":[{"
+        "\"id\":\"%s\",\"name\":\"Package Selftest\",\"version\":\"%s\","
+        "\"author\":\"Limitless\",\"summary\":\"Catalog installer selftest\","
+        "\"description\":\"Catalog installer selftest\",\"icon\":\"package\","
+        "\"hue\":84,\"api_version\":\"0.1\","
+        "\"package_url\":\"https://apps.example.invalid/%s.zip\","
+        "\"package_sha256\":\"%s\",\"package_bytes\":%lu,"
+        "\"compatibility\":{\"api_versions\":[\"0.1\"],\"targets\":[\"tdeck\",\"sim\"]},"
+        "\"permissions\":[\"display\"]}]}",
+        LZ_APP_CATALOG_SCHEMA, id, version, id, sha, (unsigned long)bytes);
+    if(n <= 0 || n >= (int)sizeof json) {
+        set_err(err, err_cap, "catalog too large");
+        return false;
+    }
+    return lz_store_save_app_catalog_cache(json, n, err, err_cap);
+}
+
+int lz_store_app_catalog_install_selftest(char *buf, int n)
+{
+    if(!buf || n <= 0) return 0;
+    const char *id = "lz.cat.selftest";
+    char root[128], err[48] = "";
+    if(!app_install_root(root, sizeof root, err, sizeof err))
+        return snprintf(buf, (size_t)n, "App catalog install selftest: SKIP %s\n",
+                        err[0] ? err : "storage unavailable");
+    if(!path_mkdir(root))
+        return snprintf(buf, (size_t)n, "App catalog install selftest: SKIP root unavailable\n");
+
+    char prev_catalog[LZ_APP_CATALOG_CACHE_MAX + 1];
+    int prev_len = 0;
+    char prev_err[48] = "";
+    bool had_prev_catalog = lz_store_load_app_catalog_cache(prev_catalog, sizeof prev_catalog,
+                                                            &prev_len, prev_err, sizeof prev_err);
+
+    char package_path[160];
+    path_join(package_path, sizeof package_path, root, ".lz-cat-selftest.zip");
+    app_package_selftest_cleanup(id, package_path);
+
+    bool ok = true;
+    char detail[64] = "";
+    char sha[65];
+    uint32_t bytes = 0;
+    lz_app_package_install_t r;
+
+    #define CAT_INSTALL_CHECK(cond, msg) do { \
+        if(ok && !(cond)) { ok = false; snprintf(detail, sizeof detail, "%s", msg); } \
+    } while(0)
+
+    CAT_INSTALL_CHECK(app_package_selftest_write_zip(package_path, id, "1.0.0", NULL,
+                                                     LZ_ZIP_METHOD_STORED),
+                      "write v1");
+    CAT_INSTALL_CHECK(app_package_hash_and_size(package_path, sha, sizeof sha, &bytes,
+                                                err, sizeof err),
+                      "hash v1");
+    CAT_INSTALL_CHECK(app_catalog_selftest_save_catalog(id, "1.0.0", sha, bytes,
+                                                        err, sizeof err),
+                      "catalog v1");
+    memset(&r, 0, sizeof r);
+    CAT_INSTALL_CHECK(lz_store_install_app_catalog_entry(id, package_path, &r) &&
+                      r.ok && strcmp(r.version, "1.0.0") == 0 && !r.fetched &&
+                      app_package_selftest_live_version(id, "1.0.0"),
+                      "install v1");
+
+    static const char zero_sha[] =
+        "0000000000000000000000000000000000000000000000000000000000000000";
+    CAT_INSTALL_CHECK(app_package_selftest_write_zip(package_path, id, "1.1.0", NULL,
+                                                     LZ_ZIP_METHOD_STORED),
+                      "write bad update");
+    CAT_INSTALL_CHECK(app_package_hash_and_size(package_path, sha, sizeof sha, &bytes,
+                                                err, sizeof err),
+                      "hash bad update");
+    CAT_INSTALL_CHECK(app_catalog_selftest_save_catalog(id, "1.1.0", zero_sha, bytes,
+                                                        err, sizeof err),
+                      "catalog bad hash");
+    memset(&r, 0, sizeof r);
+    CAT_INSTALL_CHECK(!lz_store_install_app_catalog_entry(id, package_path, &r) &&
+                      strcmp(r.error, "sha mismatch") == 0 &&
+                      app_package_selftest_live_version(id, "1.0.0"),
+                      "bad hash rollback");
+
+    CAT_INSTALL_CHECK(app_package_selftest_write_zip(package_path, id, "2.0.0",
+                                                     "assets/readme.txt",
+                                                     LZ_ZIP_METHOD_STORED),
+                      "write v2");
+    CAT_INSTALL_CHECK(app_package_hash_and_size(package_path, sha, sizeof sha, &bytes,
+                                                err, sizeof err),
+                      "hash v2");
+    CAT_INSTALL_CHECK(app_catalog_selftest_save_catalog(id, "2.0.0", sha, bytes,
+                                                        err, sizeof err),
+                      "catalog v2");
+    memset(&r, 0, sizeof r);
+    CAT_INSTALL_CHECK(lz_store_install_app_catalog_entry(id, package_path, &r) &&
+                      r.ok && strcmp(r.version, "2.0.0") == 0 && r.file_count == 3 &&
+                      app_package_selftest_live_version(id, "2.0.0"),
+                      "update v2");
+
+    #undef CAT_INSTALL_CHECK
+
+    app_package_selftest_cleanup(id, package_path);
+    if(had_prev_catalog)
+        lz_store_save_app_catalog_cache(prev_catalog, prev_len, err, sizeof err);
+    else
+        lz_store_clear_app_catalog_cache(err, sizeof err);
+
+    return snprintf(buf, (size_t)n,
+                    "App catalog install selftest: %s version=%s files=%u%s%s\n",
+                    ok ? "PASS" : "FAIL",
+                    ok ? "2.0.0" : "-",
+                    ok ? (unsigned)r.file_count : 0u,
+                    detail[0] ? " error=" : "",
+                    detail);
 }
 
 int lz_store_app_package_selftest(char *buf, int n)

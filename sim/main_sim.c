@@ -1427,6 +1427,20 @@ static int codec_selftest(void)
         lz_store_init(NULL);
         sim_reset_dir("lzdata_apppackage");
     }
+    /* 10c. catalog-driven package install: catalog SHA/size metadata drives the
+     *      verified installer and preserves the live app on failed updates. */
+    {
+        extern void lz_store_init(const char *datadir);
+        extern int  lz_store_app_catalog_install_selftest(char *buf, int n);
+        sim_reset_dir("lzdata_appcataloginstall");
+        lz_store_init("lzdata_appcataloginstall");
+        char catpkg[180];
+        lz_store_app_catalog_install_selftest(catpkg, sizeof catpkg);
+        CHECK(strstr(catpkg, "PASS") != NULL,
+              "app catalog package install/update selftest");
+        lz_store_init(NULL);
+        sim_reset_dir("lzdata_appcataloginstall");
+    }
     /* 10. local app uninstall: users can delete a package while either
      *     retaining scoped data for reinstall or deleting everything. */
     {

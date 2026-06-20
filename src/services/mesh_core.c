@@ -39,6 +39,9 @@ bool lz_store_install_app_package(const char *id, const char *package_path,
                                   const char *sha256, uint32_t package_bytes,
                                   lz_app_package_install_t *out);
 int  lz_store_app_package_selftest(char *buf, int n);
+bool lz_store_install_app_catalog_entry(const char *id, const char *package_path,
+                                        lz_app_package_install_t *out);
+int  lz_store_app_catalog_install_selftest(char *buf, int n);
 bool lz_store_parse_app_catalog_json(const char *json, lz_app_catalog_entry_t *out,
                                      int cap, lz_app_catalog_report_t *report);
 int  lz_store_load_app_catalog(lz_app_catalog_entry_t *out, int cap,
@@ -522,6 +525,17 @@ bool lz_svc_install_app_package(const char *id, const char *package_path,
 int lz_svc_app_package_selftest(char *buf, int n)
 {
     return lz_store_app_package_selftest(buf, n);
+}
+
+bool lz_svc_install_app_catalog_entry(const char *id, const char *package_path,
+                                      lz_app_package_install_t *out)
+{
+    return lz_store_install_app_catalog_entry(id, package_path, out);
+}
+
+int lz_svc_app_catalog_install_selftest(char *buf, int n)
+{
+    return lz_store_app_catalog_install_selftest(buf, n);
 }
 
 bool lz_svc_ota_manifest_status(lz_ota_manifest_t *out)

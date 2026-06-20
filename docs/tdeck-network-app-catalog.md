@@ -1,9 +1,9 @@
 # Network App Catalog
 
 This is the V0.95/V0.96 bridge contract for turning the App Store from local
-manifest scanning into a downloadable catalog. It defines the first
-`index.json` shape only; firmware download, install, update, and rollback are
-still later work.
+manifest scanning into a downloadable catalog. Firmware now validates cached
+catalog rows, renders them in App Store, and can install or update a catalog
+entry through the verified stored-ZIP package transaction.
 
 The catalog is intentionally stricter than a web store feed. Every app entry
 must expose enough metadata for the T-Deck to show permissions, check SDK
@@ -78,13 +78,15 @@ field, but when present it must be a compact version string such as `0.95.0`.
 
 ## Package Rules
 
-The package URL must be HTTPS. The lower-level firmware installer accepts a
-package file that has already been downloaded or copied to SD/appfs, verifies
+The package URL must be HTTPS. On T-Deck builds, catalog installs stream the
+package URL to a bounded temp file under local storage when Wi-Fi is connected;
+serial diagnostics may also provide an already-copied package path for
+deterministic smoke tests. In both cases the installer verifies
 `package_sha256` and `package_bytes`, extracts a stored-only `.zip` package into
 a hidden staging directory, validates its embedded `manifest.json` with the
 local manifest rules, and then atomically promotes the staged package into the
-app directory. Any hash mismatch, manifest rejection, unsupported compression,
-unsafe path, or extraction error leaves the previous installed package intact.
+app directory. Any download, hash, manifest, unsupported compression, unsafe
+path, or extraction error leaves the previous installed package intact.
 
 The first firmware package subset deliberately avoids a decompressor: ZIP
 method `0` is accepted, and compressed ZIP entries are rejected until flash/RAM
@@ -103,3 +105,16 @@ python scripts/validate_app_catalog.py docs/examples/app-catalog-index.json
 
 Firmware CI runs the same validator against the checked-in example catalog so
 schema drift is caught with the normal simulator and T-Deck build gates.
+
+Serial hardware diagnostics:
+
+```text
+app catalog status
+app catalog test
+app catalog install-test
+app catalog install <id> [package_path]
+```
+
+`app catalog install-test` creates a synthetic catalog and stored-ZIP package on
+device, proves install/update, and proves a bad catalog hash preserves the
+previous live app.
