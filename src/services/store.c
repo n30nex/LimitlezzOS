@@ -1345,6 +1345,14 @@ bool lz_local_app_runtime_within_budget(lz_local_app_session_t *s)
     snprintf(s->error, sizeof s->error, "runtime memory cap exceeded");
     return false;
 }
+static void app_session_fault(lz_local_app_session_t *out, const char *phase,
+                              const char *msg)
+{
+    if(!out) return;
+    snprintf(out->fault, sizeof out->fault, "%s: %s",
+             phase && phase[0] ? phase : "runtime",
+             msg && msg[0] ? msg : "unknown error");
+}
 
 static bool app_session_fail(lz_local_app_session_t *out, const lz_local_app_t *app,
                              const char *msg)
@@ -1356,6 +1364,7 @@ static bool app_session_fail(lz_local_app_session_t *out, const lz_local_app_t *
         if(!out->status[0]) snprintf(out->status, sizeof out->status, "Launch blocked");
         snprintf(out->error, sizeof out->error, "%s", msg ? msg : "unknown error");
         lz_local_app_runtime_refresh(out);
+        app_session_fault(out, "launch", out->error);
     }
     return false;
 }
@@ -2050,22 +2059,34 @@ bool lz_store_start_local_app(const lz_local_app_t *app, lz_local_app_session_t 
 
 bool lz_store_local_app_action(lz_local_app_session_t *session, int idx)
 {
-    if(!session || session->error[0] || idx < 0 || idx >= session->action_count)
+    if(!session) return false;
+    if(session->error[0]) return false;
+    if(idx < 0 || idx >= session->action_count) {
+        app_session_fault(session, "action", "invalid action");
         return false;
+    }
+    session->fault[0] = 0;
     lz_local_app_action_t *a = &session->actions[idx];
     char key[20];
     uint32_t count = 0;
     if(effect_counter_key(a->effect, key, sizeof key)) {
         if(session->data_quota_bytes &&
            session->data_used_bytes + 16u > session->data_quota_bytes) {
+            app_session_fault(session, "action", "storage quota exceeded");
             snprintf(session->status, sizeof session->status, "Storage quota exceeded");
             snprintf(session->body, sizeof session->body,
                      "Action could not write scoped app data.");
             session->action_last = (uint8_t)(idx + 1);
             return true;
         }
-        if(!session->storage_ready || !counter_read_write(session->data_path, key, &count))
-            return false;
+        if(!session->storage_ready || !counter_read_write(session->data_path, key, &count)) {
+            app_session_fault(session, "action", "storage write failed");
+            snprintf(session->status, sizeof session->status, "Action failed");
+            snprintf(session->body, sizeof session->body,
+                     "Action could not write scoped app data.");
+            session->action_last = (uint8_t)(idx + 1);
+            return true;
+        }
         if(a->status[0]) template_count(session->status, sizeof session->status, a->status, count);
         if(a->body[0]) template_count(session->body, sizeof session->body, a->body, count);
         refresh_session_data_usage(session);
