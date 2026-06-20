@@ -1665,12 +1665,24 @@ static bool load_app_manifest(const char *pkg_dir, lz_local_app_t *app,
     FILE *f = fopen(manifest, "rb");
     if(!f) return manifest_fail(reason, reason_cap, "missing manifest");
 
-    char json[1537];
-    size_t n = fread(json, 1, sizeof json - 1, f);
+    size_t cap_json = 1537;
+    char *json = (char *)malloc(cap_json);
+    if(!json) {
+        fclose(f);
+        return manifest_fail(reason, reason_cap, "manifest buffer unavailable");
+    }
+    bool ok = false;
+    size_t n = fread(json, 1, cap_json - 1, f);
     fclose(f);
     json[n] = 0;
-    if(n == 0) return manifest_fail(reason, reason_cap, "empty manifest");
-    if(n >= sizeof json - 1) return manifest_fail(reason, reason_cap, "manifest too large");
+    if(n == 0) {
+        manifest_fail(reason, reason_cap, "empty manifest");
+        goto done;
+    }
+    if(n >= cap_json - 1) {
+        manifest_fail(reason, reason_cap, "manifest too large");
+        goto done;
+    }
 
     memset(app, 0, sizeof *app);
     app->hue = -1;
@@ -1680,12 +1692,18 @@ static bool load_app_manifest(const char *pkg_dir, lz_local_app_t *app,
     snprintf(app->icon, sizeof app->icon, "description");
     app->permissions = LZ_APP_PERM_DISPLAY | LZ_APP_PERM_INPUT;
 
-    if(!json_get_string(json, "id", app->id, sizeof app->id))
-        return manifest_fail(reason, reason_cap, "missing id");
-    if(!json_get_string(json, "name", app->name, sizeof app->name))
-        return manifest_fail(reason, reason_cap, "missing name");
-    if(!json_get_string(json, "entry", app->entry, sizeof app->entry))
-        return manifest_fail(reason, reason_cap, "missing entry");
+    if(!json_get_string(json, "id", app->id, sizeof app->id)) {
+        manifest_fail(reason, reason_cap, "missing id");
+        goto done;
+    }
+    if(!json_get_string(json, "name", app->name, sizeof app->name)) {
+        manifest_fail(reason, reason_cap, "missing name");
+        goto done;
+    }
+    if(!json_get_string(json, "entry", app->entry, sizeof app->entry)) {
+        manifest_fail(reason, reason_cap, "missing entry");
+        goto done;
+    }
     json_get_string(json, "version", app->version, sizeof app->version);
     json_get_string(json, "author", app->author, sizeof app->author);
     json_get_string(json, "api_version", app->api_version, sizeof app->api_version);
@@ -1695,22 +1713,37 @@ static bool load_app_manifest(const char *pkg_dir, lz_local_app_t *app,
     json_get_int(json, "hue", &app->hue);
 
     const char *perms = json_value_for(json, "permissions");
-    if(perms && !json_parse_permissions_value(perms, &app->permissions))
-        return manifest_fail(reason, reason_cap, "bad permissions");
+    if(perms && !json_parse_permissions_value(perms, &app->permissions)) {
+        manifest_fail(reason, reason_cap, "bad permissions");
+        goto done;
+    }
 
-    if(!safe_id(app->id)) return manifest_fail(reason, reason_cap, "unsafe id");
-    if(!safe_entry(app->entry)) return manifest_fail(reason, reason_cap, "unsafe entry");
-    if(!api_version_supported(app->api_version))
-        return manifest_fail(reason, reason_cap, "unsupported SDK");
+    if(!safe_id(app->id)) {
+        manifest_fail(reason, reason_cap, "unsafe id");
+        goto done;
+    }
+    if(!safe_entry(app->entry)) {
+        manifest_fail(reason, reason_cap, "unsafe entry");
+        goto done;
+    }
+    if(!api_version_supported(app->api_version)) {
+        manifest_fail(reason, reason_cap, "unsupported SDK");
+        goto done;
+    }
     if(app->hue < -1 || app->hue > 359) app->hue = -1;
 
     char entry_path[160];
     path_join(entry_path, sizeof entry_path, pkg_dir, app->entry);
-    if(!path_is_file(entry_path))
-        return manifest_fail(reason, reason_cap, "missing entry file");
+    if(!path_is_file(entry_path)) {
+        manifest_fail(reason, reason_cap, "missing entry file");
+        goto done;
+    }
 
     snprintf(app->path, sizeof app->path, "%s", pkg_dir);
-    return true;
+    ok = true;
+done:
+    free(json);
+    return ok;
 }
 
 static bool app_install_paths(const char *id, char *apps, size_t apps_cap,
