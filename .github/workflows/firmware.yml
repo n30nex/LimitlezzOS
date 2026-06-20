@@ -47,6 +47,10 @@ jobs:
         run: |
           python -m py_compile scripts/check_tdeck_budget.py scripts/fetch_tdeck_artifact.py scripts/serial_harness.py scripts/tdeck_smoke.py scripts/tdm_airtime_smoke.py
           python scripts/tdm_airtime_smoke.py --selftest
+      - name: Validate local app samples
+        run: |
+          python -m py_compile scripts/validate_local_app_samples.py
+          python scripts/validate_local_app_samples.py
 
       - name: Build native simulator
         run: pio run -e native
