@@ -71,6 +71,7 @@ static void cmd_help(void)
         "  companion test       loopback-verify the companion protocol\n"
         "  feedback status|test  feedback/app-notification diagnostics\n"
         "  app notify test      request a test app notification\n"
+        "  app catalog status|test  app catalog schema diagnostics\n"
         "  touch [cal|debug|S X Y]  touch: 'cal' runs on-screen calibration, 'debug' logs taps, 'S X Y' sets transform\n"
         "  feedback             show DND/priority feedback policy\n"
         "  emergency [arm|confirm|cancel]  diagnostic emergency trigger guard\n"
@@ -441,6 +442,25 @@ static void cmd_companion(char *args)
 }
 
 static void cmd_nodes(char *args)
+static void cmd_app(char *args)
+{
+    if(args && strcmp(args, "catalog test") == 0) {
+        char b[180];
+        lz_svc_app_catalog_selftest(b, sizeof b);
+        Serial.print(b);
+        return;
+    }
+    if(!args || !args[0] || strcmp(args, "catalog") == 0 ||
+       strcmp(args, "catalog status") == 0) {
+        char b[180];
+        lz_svc_app_catalog_diag(b, sizeof b);
+        Serial.print(b);
+        return;
+    }
+    Serial.println("usage: app catalog status | app catalog test");
+}
+
+static void cmd_nodes(void)
 {
     if(args && strcmp(args, "test") == 0) {
         char err[64];

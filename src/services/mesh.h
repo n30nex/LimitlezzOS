@@ -38,6 +38,8 @@ extern "C" {
 #define LZ_FEEDBACK_SOURCE_MAX 24
 #define LZ_FEEDBACK_TITLE_MAX 32
 #define LZ_FEEDBACK_BODY_MAX 96
+#define LZ_APP_CATALOG_JSON_MAX 4096u
+#define LZ_APP_CATALOG_MAX_APPS 24
 
 #define LZ_APP_PERM_DISPLAY       0x0001u
 #define LZ_APP_PERM_INPUT         0x0002u
@@ -201,6 +203,14 @@ typedef struct {
 } lz_local_app_issue_t;
 
 typedef struct {
+    bool ok;
+    int  app_count;
+    int  rejected_count;
+    char first_id[24];
+    char first_error[64];
+} lz_app_catalog_report_t;
+
+typedef struct {
     char label[24];              /* app-provided foreground control label */
     char status[48];             /* bounded status shown after activation */
     char effect[LZ_LOCAL_APP_ACTION_EFFECT_MAX]; /* optional safe SDK effect */
@@ -262,6 +272,9 @@ bool lz_svc_feedback_notify(const char *source, const char *title, const char *b
 void lz_svc_feedback_status(lz_feedback_status_t *out);
 int  lz_svc_feedback_diag(char *buf, int n);
 int  lz_svc_feedback_selftest(char *buf, int n);
+bool lz_svc_validate_app_catalog_json(const char *json, lz_app_catalog_report_t *out);
+int  lz_svc_app_catalog_diag(char *buf, int n);
+int  lz_svc_app_catalog_selftest(char *buf, int n);
 
 /* ---- nodes ---- */
 int  lz_svc_nodes(const lz_node_rt **out);              /* all heard nodes */
