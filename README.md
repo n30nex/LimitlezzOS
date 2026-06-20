@@ -144,6 +144,9 @@ iPhone-style dark look (status bar, battery glyph, grouped settings cards).
   and apps with matching permissions can use read-only `{time}` / `{battery}`
   tokens in foreground text. Loaded entry source plus app-controlled foreground
   metadata are charged against a 704-byte resident runtime budget. SDK
+  apps with matching permissions can use read-only `{time}` / `{battery}`
+  tokens in foreground text, and apps with `notifications` can request a
+  feedback-service notification through a bounded `notify:` action effect. SDK
   `api_version` and permission metadata are parsed fail-closed, with rejected
   package diagnostics visible in Developer Mode. Apps that request `storage`
   get a scoped package `data/` directory prepared with a 64 KB launch-time quota

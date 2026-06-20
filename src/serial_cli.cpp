@@ -69,6 +69,8 @@ static void cmd_help(void)
         "  companion mc hello|status|nodes|threads|send|dm|test  MeshCore companion v0\n"
         "  companion mc usb on|off|status|test  USB speaks MeshCore MC0\n"
         "  companion test       loopback-verify the companion protocol\n"
+        "  feedback status|test  feedback/app-notification diagnostics\n"
+        "  app notify test      request a test app notification\n"
         "  touch [cal|debug|S X Y]  touch: 'cal' runs on-screen calibration, 'debug' logs taps, 'S X Y' sets transform\n"
         "  feedback             show DND/priority feedback policy\n"
         "  emergency [arm|confirm|cancel]  diagnostic emergency trigger guard\n"
@@ -276,13 +278,6 @@ static void cmd_dm(char *args)
         return;
     }
     Serial.println("usage: dm status | dm test | dm req <shortcode> | dm send <shortcode> <text>");
-}
-
-static void cmd_feedback(void)
-{
-    char b[760];
-    lz_feedback_policy_diag(b, sizeof b);
-    Serial.print(b);
 }
 
 static void cmd_touch(char *args)
@@ -550,6 +545,33 @@ static void cmd_settings(char *args)
                   S.settings.developer ? "on" : "off");
 }
 
+static void cmd_feedback(char *args)
+{
+    if(args && strcmp(args, "test") == 0) {
+        char b[120];
+        lz_svc_feedback_selftest(b, sizeof b);
+        Serial.println(b);
+        return;
+    }
+    /* default/status: notification-service diag + the DND/priority policy matrix */
+    char b[760];
+    lz_svc_feedback_diag(b, sizeof b);
+    Serial.print(b);
+    lz_feedback_policy_diag(b, sizeof b);
+    Serial.print(b);
+}
+
+static void cmd_app(char *args)
+{
+    if(args && strcmp(args, "notify test") == 0) {
+        lz_svc_feedback_notify("serial-app", "App notification", "SDK notify smoke");
+        Serial.println("[ok] app notification requested");
+        cmd_feedback((char *)"status");
+        return;
+    }
+    Serial.println("usage: app notify test");
+}
+
 static void cmd_sys(void)
 {
     lz_sysinfo_t si;
@@ -594,8 +616,9 @@ static void dispatch(char *line)
     else if(!strcmp(line, "rf"))      cmd_rf(args);
     else if(!strcmp(line, "mc"))      cmd_mc(args);
     else if(!strcmp(line, "companion")) cmd_companion(args);
+    else if(!strcmp(line, "feedback")) cmd_feedback(args);
+    else if(!strcmp(line, "app"))     cmd_app(args);
     else if(!strcmp(line, "touch"))   cmd_touch(args);
-    else if(!strcmp(line, "feedback")) cmd_feedback();
     else if(!strcmp(line, "emergency")) cmd_emergency(args);
     else if(!strcmp(line, "dm"))      cmd_dm(args);
     else if(!strcmp(line, "rxlog")) {
